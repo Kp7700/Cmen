@@ -1,0 +1,1684 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Cmen — The language of controlled release</title>
+<meta name="description" content="Cmen is an experimental programming language engineered for performance, expression, and questionable terminology.">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='8' fill='%230a0a0f'/%3E%3Cpath d='M22 10c-2-2.4-9-2.6-11.4 1.6-2.2 3.8-1.4 8.6 2 10.8 3 1.9 7.2 1.2 9.4-1.4' fill='none' stroke='%237aa2ff' stroke-width='2.6' stroke-linecap='round'/%3E%3Ccircle cx='23.5' cy='8.5' r='2.6' fill='%23ff8fc0'/%3E%3C/svg%3E">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=JetBrains+Mono:ital,wght@0,400;0,500;0,600;1,400&display=swap" rel="stylesheet">
+<style>
+/* ============ tokens ============ */
+:root{
+  --bg:#0a0a0f; --bg2:#0d0d14; --panel:#101018; --panel2:#14141e;
+  --line:#1d1d2a; --line2:#2b2b3d;
+  --text:#e9e9f2; --muted:#9b9bb2; --faint:#66667e;
+  --accent:#7aa2ff; --accent-soft:rgba(122,162,255,.12);
+  --pink:#ff8fc0; --violet:#a48bff; --amber:#ffcb69; --teal:#5fe0c4;
+  --red:#ff6b81; --green:#7ee787;
+  --mono:'JetBrains Mono',ui-monospace,'SF Mono',Menlo,monospace;
+  --sans:'Space Grotesk','Segoe UI',sans-serif;
+  --maxw:1140px;
+}
+*{margin:0;padding:0;box-sizing:border-box}
+html{scroll-behavior:smooth}
+body{background:var(--bg);color:var(--text);font-family:var(--sans);font-size:16px;line-height:1.65;-webkit-font-smoothing:antialiased}
+::selection{background:rgba(122,162,255,.3)}
+a{color:var(--accent);text-decoration:none}
+button{font-family:inherit;cursor:pointer}
+code,pre,textarea,kbd{font-family:var(--mono)}
+section{scroll-margin-top:76px}
+.wrap{max-width:var(--maxw);margin:0 auto;padding:0 24px}
+:focus-visible{outline:2px solid var(--accent);outline-offset:2px;border-radius:4px}
+
+/* ============ nav ============ */
+.nav{position:fixed;top:0;left:0;right:0;z-index:100;height:60px;background:rgba(10,10,15,.78);backdrop-filter:blur(14px);-webkit-backdrop-filter:blur(14px);border-bottom:1px solid var(--line)}
+.nav-in{max-width:var(--maxw);margin:0 auto;padding:0 24px;height:60px;display:flex;align-items:center;gap:26px}
+.brand{display:flex;align-items:center;gap:10px;color:var(--text);font-weight:700;font-size:18px;letter-spacing:-.02em}
+.brand .ver{font-family:var(--mono);font-size:10.5px;font-weight:500;color:var(--accent);background:var(--accent-soft);border:1px solid rgba(122,162,255,.25);padding:1px 7px;border-radius:99px;margin-left:2px}
+.nav-links{display:flex;gap:4px;margin-left:auto}
+.nav-links a{color:var(--muted);font-size:14px;font-weight:500;padding:7px 12px;border-radius:7px;transition:color .15s,background .15s}
+.nav-links a:hover{color:var(--text);background:var(--panel2)}
+.nav-links a.active{color:var(--accent)}
+.gh-btn{display:flex;align-items:center;gap:7px;background:none;border:1px solid var(--line2);color:var(--text);font-size:13.5px;font-weight:500;padding:7px 14px;border-radius:8px;transition:border-color .15s,background .15s}
+.gh-btn:hover{border-color:var(--accent);background:var(--accent-soft)}
+.menu-btn{display:none;margin-left:auto;background:none;border:1px solid var(--line2);border-radius:8px;width:38px;height:38px;color:var(--text);align-items:center;justify-content:center}
+.m-menu{display:none;position:fixed;top:60px;left:0;right:0;z-index:99;background:var(--bg2);border-bottom:1px solid var(--line);padding:10px 24px 18px;flex-direction:column}
+.m-menu.open{display:flex}
+.m-menu a{color:var(--muted);padding:11px 4px;border-bottom:1px solid var(--line);font-size:15px}
+.m-menu a:last-child{border:none}
+
+/* ============ hero ============ */
+.hero{position:relative;min-height:100vh;display:flex;align-items:center;padding:110px 0 70px;overflow:hidden;border-bottom:1px solid var(--line)}
+.hero::before{content:'';position:absolute;inset:0;background-image:linear-gradient(rgba(255,255,255,.035) 1px,transparent 1px),linear-gradient(90deg,rgba(255,255,255,.035) 1px,transparent 1px);background-size:46px 46px;-webkit-mask-image:radial-gradient(ellipse 85% 75% at 50% 42%,#000 25%,transparent 74%);mask-image:radial-gradient(ellipse 85% 75% at 50% 42%,#000 25%,transparent 74%);pointer-events:none}
+#bg-motes{position:absolute;inset:0;pointer-events:none}
+.hero-in{position:relative;display:grid;grid-template-columns:minmax(0,1.05fr) minmax(0,.95fr);gap:56px;align-items:center;width:100%}
+.hero-badge{display:inline-flex;align-items:center;gap:8px;font-family:var(--mono);font-size:11.5px;color:var(--muted);border:1px solid var(--line2);background:rgba(16,16,24,.6);padding:5px 12px;border-radius:99px;margin-bottom:26px}
+.hero-badge i{width:6px;height:6px;border-radius:50%;background:var(--green);display:inline-block;animation:pulse 2.4s infinite}
+@keyframes pulse{0%,100%{opacity:1}50%{opacity:.35}}
+.hero h1{font-size:clamp(58px,8.5vw,96px);font-weight:700;letter-spacing:-.045em;line-height:.98;margin-bottom:6px}
+.hero h1 .dot{color:var(--pink)}
+.pron{font-family:var(--mono);font-size:13.5px;color:var(--faint);margin-bottom:22px}
+.pron b{color:var(--muted);font-weight:500}
+.tagline{font-size:clamp(20px,2.6vw,27px);font-weight:600;letter-spacing:-.02em;margin-bottom:16px}
+.tagline em{font-style:normal;color:var(--accent)}
+.hero-sub{color:var(--muted);max-width:480px;font-size:16.5px;margin-bottom:34px}
+.hero-sub code{font-size:14px;color:var(--teal);background:var(--panel2);padding:1px 6px;border-radius:5px}
+.cta-row{display:flex;gap:14px;flex-wrap:wrap;margin-bottom:30px}
+.btn{display:inline-flex;align-items:center;gap:9px;font-size:15px;font-weight:600;padding:12px 24px;border-radius:10px;border:1px solid transparent;transition:transform .15s,background .15s,border-color .15s;letter-spacing:-.01em}
+.btn:hover{transform:translateY(-1px)}
+.btn-primary{background:var(--accent);color:#07070c}
+.btn-primary:hover{background:#8fb1ff}
+.btn-ghost{border-color:var(--line2);color:var(--text);background:transparent}
+.btn-ghost:hover{border-color:var(--accent);color:var(--accent)}
+.hero-meta{display:flex;gap:20px;flex-wrap:wrap;font-family:var(--mono);font-size:12px;color:var(--faint)}
+.hero-meta span::before{content:'·';margin-right:20px;color:var(--line2)}
+.hero-meta span:first-child::before{content:'';margin:0}
+
+/* terminal */
+.term{background:#0b0b12;border:1px solid var(--line2);border-radius:12px;overflow:hidden;box-shadow:0 24px 60px -24px rgba(0,0,0,.7);font-size:13.5px}
+.term-head{display:flex;align-items:center;gap:12px;padding:10px 14px;border-bottom:1px solid var(--line);background:var(--panel)}
+.dots{display:flex;gap:6px}
+.dots i{width:10px;height:10px;border-radius:50%;background:var(--line2)}
+.dots i:first-child{background:#3d3148}.dots i:nth-child(2){background:#3a3450}.dots i:last-child{background:#2e3a50}
+.term-file{font-family:var(--mono);font-size:12px;color:var(--muted)}
+.term-ver{margin-left:auto;font-family:var(--mono);font-size:11px;color:var(--faint)}
+.term-body{padding:16px 18px;min-height:218px;white-space:pre;overflow-x:auto;line-height:1.7}
+.term-out{border-top:1px dashed var(--line);padding:12px 18px;min-height:96px;font-family:var(--mono);font-size:13px;line-height:1.7;white-space:pre-wrap}
+.term-out .runline{color:var(--muted)}
+.term-out .runline b{color:var(--accent);font-weight:500}
+.term-out .oline{color:var(--green)}
+.term-out .sysline{color:var(--faint)}
+.cursor{display:inline-block;width:8px;height:16px;background:var(--accent);vertical-align:-2px;animation:blink 1s steps(1) infinite}
+@keyframes blink{50%{opacity:0}}
+
+/* ============ shared section chrome ============ */
+.sec{padding:110px 0;border-bottom:1px solid var(--line)}
+.kicker{font-family:var(--mono);font-size:12.5px;color:var(--accent);letter-spacing:.06em;margin-bottom:14px;display:block}
+.sec h2{font-size:clamp(30px,4vw,42px);font-weight:700;letter-spacing:-.035em;line-height:1.12;margin-bottom:18px}
+.sec-lead{color:var(--muted);max-width:640px;font-size:16.5px}
+
+/* ============ why ============ */
+.why-grid{display:grid;grid-template-columns:minmax(0,1.5fr) minmax(0,1fr);gap:64px;margin-top:48px}
+.why-big{font-size:clamp(19px,2.2vw,23px);line-height:1.6;letter-spacing:-.01em;color:var(--text)}
+.why-big .hl{color:var(--accent)}
+.why-body{margin-top:26px;color:var(--muted)}
+.why-body p+p{margin-top:16px}
+.faq{display:flex;flex-direction:column;gap:0;border-top:1px solid var(--line)}
+.faq-item{padding:22px 0;border-bottom:1px solid var(--line)}
+.faq-item h3{font-size:15.5px;font-weight:600;margin-bottom:8px;letter-spacing:-.01em}
+.faq-item h3::before{content:'Q ';color:var(--pink);font-family:var(--mono);font-weight:500}
+.faq-item p{color:var(--muted);font-size:14.5px}
+.faq-item p::before{content:'A ';color:var(--accent);font-family:var(--mono)}
+
+/* ============ features ledger ============ */
+.ledger{margin-top:52px;border-top:1px solid var(--line)}
+.ledger-row{display:grid;grid-template-columns:86px 280px 1fr 40px;gap:24px;align-items:baseline;padding:30px 8px;border-bottom:1px solid var(--line);transition:background .2s;position:relative}
+.ledger-row:hover{background:rgba(122,162,255,.035)}
+.ledger-idx{font-family:var(--mono);font-size:13px;color:var(--faint);transition:color .2s}
+.ledger-row:hover .ledger-idx{color:var(--accent)}
+.ledger-name{font-size:19px;font-weight:600;letter-spacing:-.02em}
+.ledger-name code{font-size:14px;color:var(--teal);background:var(--panel2);padding:1px 6px;border-radius:5px}
+.ledger-desc{color:var(--muted);font-size:15px}
+.ledger-desc code{font-size:13.5px;color:var(--violet)}
+.ledger-arrow{color:var(--line2);transition:color .2s,transform .2s;align-self:center}
+.ledger-row:hover .ledger-arrow{color:var(--accent);transform:translateX(4px)}
+
+/* ============ syntax glance ============ */
+.glance{margin-top:48px;border:1px solid var(--line);border-radius:12px;overflow:hidden}
+.glance-row{display:grid;grid-template-columns:300px 1fr;gap:20px;padding:17px 24px;border-bottom:1px solid var(--line);background:var(--panel);transition:background .15s}
+.glance-row:nth-child(even){background:var(--bg2)}
+.glance-row:hover{background:var(--panel2)}
+.glance-row:last-child{border-bottom:none}
+.glance-row code{font-size:13.5px;color:var(--accent);white-space:nowrap}
+.glance-row span{color:var(--muted);font-size:14.5px}
+.glance-row span i{color:var(--faint);font-style:normal}
+
+/* ============ playground ============ */
+.pg{display:grid;grid-template-columns:minmax(0,1.35fr) minmax(0,1fr);gap:18px;margin-top:44px}
+.panel{background:var(--panel);border:1px solid var(--line);border-radius:12px;overflow:hidden;display:flex;flex-direction:column}
+.panel-head{display:flex;align-items:center;gap:12px;padding:10px 14px;border-bottom:1px solid var(--line);background:var(--panel2)}
+.panel-title{font-family:var(--mono);font-size:12px;color:var(--muted);display:flex;align-items:center;gap:8px}
+.panel-title svg{color:var(--faint)}
+.spacer{flex:1}
+.mini-btn{background:none;border:1px solid var(--line2);color:var(--muted);font-size:12px;font-weight:500;font-family:var(--mono);padding:5px 12px;border-radius:7px;transition:all .15s;display:inline-flex;align-items:center;gap:6px}
+.mini-btn:hover{border-color:var(--accent);color:var(--accent)}
+.mini-btn.primary{background:var(--accent);border-color:var(--accent);color:#07070c;font-weight:600}
+.mini-btn.primary:hover{background:#8fb1ff}
+.mini-btn:disabled{opacity:.55;cursor:wait}
+select.mini-select{background:var(--bg);border:1px solid var(--line2);color:var(--muted);font-family:var(--mono);font-size:12px;padding:5px 10px;border-radius:7px;max-width:190px}
+select.mini-select:hover{border-color:var(--accent)}
+
+.editor-wrap{display:flex;height:460px;background:#0c0c13}
+.ed-gutter{width:48px;flex:none;border-right:1px solid var(--line);overflow:hidden;background:var(--panel);padding:14px 0;text-align:right}
+.ed-nums{font-family:var(--mono);font-size:13px;line-height:1.65;color:#3c3c52;padding-right:12px;will-change:transform}
+.code-area{position:relative;flex:1;min-width:0}
+.code-area pre,.code-area textarea{position:absolute;inset:0;margin:0;padding:14px 16px;font-size:13px;line-height:1.65;white-space:pre;overflow:auto;tab-size:4}
+.code-area pre{pointer-events:none;overflow:hidden;color:var(--text)}
+.code-area textarea{background:transparent;border:none;resize:none;color:transparent;caret-color:var(--accent);outline:none}
+.code-area textarea::selection{background:rgba(122,162,255,.22)}
+.console-body{height:460px;overflow-y:auto;padding:14px 16px;font-family:var(--mono);font-size:13px;line-height:1.7}
+.cline{white-space:pre-wrap;word-break:break-word}
+.c-out{color:var(--text)}
+.c-err{color:var(--red)}
+.c-sys{color:var(--faint);font-style:italic}
+.c-echo{color:var(--muted)}
+.c-echo::before{content:'❯ ';color:var(--accent)}
+.pg-hint{margin-top:14px;font-family:var(--mono);font-size:12px;color:var(--faint)}
+.pg-hint kbd{background:var(--panel2);border:1px solid var(--line2);border-radius:4px;padding:0 6px;font-size:11px;color:var(--muted)}
+
+/* ============ code blocks ============ */
+.codeblock{border:1px solid var(--line);border-radius:10px;overflow:hidden;background:#0c0c13;margin:20px 0}
+.cb-head{display:flex;align-items:center;padding:7px 8px 7px 14px;border-bottom:1px solid var(--line);background:var(--panel2)}
+.cb-name{font-family:var(--mono);font-size:11.5px;color:var(--faint)}
+.cb-actions{margin-left:auto;display:flex;gap:8px}
+.codeblock pre{padding:14px 18px;overflow-x:auto;font-size:13px;line-height:1.7}
+
+/* token colors */
+.tk{color:var(--accent)} /* keywords */
+.tb{color:var(--teal)}   /* builtins */
+.ts{color:var(--pink)}   /* strings */
+.tn{color:var(--amber)}  /* numbers */
+.tc{color:#55556e;font-style:italic} /* comments */
+
+/* ============ examples gallery ============ */
+.ex-grid{display:grid;grid-template-columns:300px minmax(0,1fr);gap:0;margin-top:44px;border:1px solid var(--line);border-radius:12px;overflow:hidden}
+.ex-list{border-right:1px solid var(--line);background:var(--panel);display:flex;flex-direction:column;max-height:600px;overflow-y:auto}
+.ex-item{background:none;border:none;border-bottom:1px solid var(--line);text-align:left;padding:16px 18px;color:var(--muted);transition:background .15s}
+.ex-item:last-child{border-bottom:none}
+.ex-item:hover{background:var(--panel2)}
+.ex-item.active{background:var(--accent-soft);color:var(--text);box-shadow:inset 3px 0 0 var(--accent)}
+.ex-item .ex-name{font-family:var(--mono);font-size:13px;color:var(--text);font-weight:500;display:flex;gap:9px;align-items:baseline}
+.ex-item .ex-name i{font-style:normal;color:var(--faint);font-size:11px}
+.ex-item.active .ex-name i{color:var(--accent)}
+.ex-item .ex-desc{font-size:12.5px;margin-top:4px;color:var(--muted)}
+.ex-detail{background:var(--bg2);padding:22px;min-width:0}
+.ex-detail .codeblock{margin:16px 0 0}
+.ex-detail-head{display:flex;align-items:center;gap:10px}
+.ex-detail-head h3{font-size:17px;font-weight:600;letter-spacing:-.01em}
+.ex-detail-head .ex-file{font-family:var(--mono);font-size:11.5px;color:var(--faint)}
+.ex-detail p.ex-note{color:var(--muted);font-size:14px;margin-top:2px}
+
+/* ============ docs ============ */
+.docs-grid{display:grid;grid-template-columns:230px minmax(0,1fr);gap:44px;margin-top:44px;align-items:start}
+.docs-nav{position:sticky;top:84px;display:flex;flex-direction:column;gap:2px}
+.docs-nav button{background:none;border:none;text-align:left;color:var(--muted);font-size:14px;padding:8px 14px;border-radius:8px;transition:all .13s;font-family:inherit}
+.docs-nav button:hover{color:var(--text);background:var(--panel2)}
+.docs-nav button.active{color:var(--accent);background:var(--accent-soft);font-weight:600}
+.docs-page{min-width:0;animation:fadein .25s ease}
+@keyframes fadein{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:none}}
+.docs-page h3{font-size:22px;font-weight:700;letter-spacing:-.02em;margin:34px 0 12px}
+.docs-page h3:first-child{margin-top:0}
+.docs-page p{color:var(--muted);margin:12px 0;max-width:720px}
+.docs-page p code,.docs-page li code,.docs-page td code{font-size:13px;color:var(--teal);background:var(--panel2);padding:1px 6px;border-radius:5px}
+.docs-page strong{color:var(--text)}
+.docs-page ul,.docs-page ol{color:var(--muted);margin:12px 0 12px 24px;max-width:720px}
+.docs-page li{margin:6px 0}
+.docs-page li::marker{color:var(--accent)}
+.dtable{width:100%;border-collapse:collapse;margin:18px 0;font-size:14px}
+.dtable th{text-align:left;font-family:var(--mono);font-size:11.5px;color:var(--faint);text-transform:uppercase;letter-spacing:.07em;padding:9px 14px;border-bottom:1px solid var(--line2)}
+.dtable td{padding:11px 14px;border-bottom:1px solid var(--line);color:var(--muted);vertical-align:top}
+.dtable td:first-child{white-space:nowrap}
+.dtable tr:last-child td{border-bottom:none}
+.doc-callout{border:1px solid rgba(255,143,192,.3);background:rgba(255,143,192,.05);border-radius:10px;padding:14px 18px;margin:20px 0;font-size:14.5px;color:var(--muted)}
+.doc-callout b{color:var(--pink)}
+.doc-note{border:1px solid rgba(122,162,255,.28);background:var(--accent-soft);border-radius:10px;padding:14px 18px;margin:20px 0;font-size:14.5px;color:var(--muted)}
+
+/* ============ status ============ */
+.status-grid{display:grid;grid-template-columns:minmax(0,1.2fr) minmax(0,.8fr);gap:52px;margin-top:44px;align-items:start}
+.status-lines{padding:20px 22px;font-family:var(--mono);font-size:13.5px;line-height:2.05}
+.srow{display:flex;align-items:baseline;gap:10px}
+.srow .k{color:var(--muted);flex:none}
+.srow .lead{flex:1;border-bottom:1px dotted var(--line2);transform:translateY(-4px)}
+.srow .v{color:var(--text)}
+.srow .v.warn{color:var(--amber)}
+.srow .v.bad{color:var(--pink)}
+.srow .v.ok{color:var(--green)}
+.status-prompt{color:var(--faint)}
+.status-prompt b{color:var(--teal);font-weight:500}
+.status-side p{color:var(--muted);font-size:15px;margin-bottom:16px}
+.status-side .btn{margin-bottom:10px;margin-right:10px}
+
+/* ============ footer ============ */
+footer{padding:56px 0 64px}
+.foot-in{display:flex;align-items:flex-start;gap:32px;flex-wrap:wrap}
+.foot-brand{display:flex;align-items:center;gap:11px;font-weight:700;font-size:16px}
+.foot-tag{color:var(--faint);font-size:13.5px;margin-top:8px;max-width:460px}
+.foot-links{margin-left:auto;display:flex;gap:22px;font-size:14px}
+.foot-links a{color:var(--muted)}
+.foot-links a:hover{color:var(--accent)}
+.foot-fine{margin-top:36px;padding-top:22px;border-top:1px solid var(--line);font-family:var(--mono);font-size:11.5px;color:var(--faint);line-height:1.9}
+
+/* ============ toast ============ */
+#toasts{position:fixed;bottom:24px;right:24px;z-index:200;display:flex;flex-direction:column;gap:10px;align-items:flex-end}
+.toast{background:var(--panel2);border:1px solid var(--line2);border-left:3px solid var(--accent);color:var(--text);font-size:14px;padding:12px 18px;border-radius:10px;max-width:360px;box-shadow:0 12px 32px rgba(0,0,0,.5);animation:toastin .3s cubic-bezier(.2,.9,.3,1.2)}
+@keyframes toastin{from{opacity:0;transform:translateY(12px) scale(.96)}to{opacity:1;transform:none}}
+.toast.bye{opacity:0;transform:translateY(8px);transition:all .3s}
+
+/* ============ responsive ============ */
+@media(max-width:960px){
+  .hero-in{grid-template-columns:1fr;gap:44px}
+  .why-grid{grid-template-columns:1fr;gap:40px}
+  .ledger-row{grid-template-columns:52px 1fr 32px;grid-template-areas:'idx name arrow' '. desc desc'}
+  .ledger-idx{grid-area:idx}.ledger-name{grid-area:name}.ledger-desc{grid-area:desc;margin-top:8px}.ledger-arrow{grid-area:arrow}
+  .pg{grid-template-columns:1fr}
+  .console-body{height:260px}
+  .editor-wrap{height:400px}
+  .ex-grid{grid-template-columns:1fr}
+  .ex-list{flex-direction:row;overflow-x:auto;border-right:none;border-bottom:1px solid var(--line);max-height:none}
+  .ex-item{border-bottom:none;border-right:1px solid var(--line);flex:none;min-width:190px}
+  .ex-item.active{box-shadow:inset 0 3px 0 var(--accent)}
+  .docs-grid{grid-template-columns:1fr;gap:22px}
+  .docs-nav{position:static;flex-direction:row;overflow-x:auto;padding-bottom:8px;border-bottom:1px solid var(--line);gap:6px}
+  .docs-nav button{flex:none}
+  .status-grid{grid-template-columns:1fr;gap:36px}
+  .glance-row{grid-template-columns:1fr;gap:6px;padding:15px 18px}
+}
+@media(max-width:760px){
+  .nav-links,.nav .gh-btn{display:none}
+  .menu-btn{display:flex}
+  .sec{padding:78px 0}
+  .hero{padding-top:96px}
+}
+@media(prefers-reduced-motion:reduce){
+  html{scroll-behavior:auto}
+  *{animation-duration:.01ms!important;transition-duration:.01ms!important}
+}
+</style>
+</head>
+<body>
+
+<!-- ================= NAV ================= -->
+<nav class="nav" aria-label="Main navigation">
+  <div class="nav-in">
+    <a class="brand" href="#top" aria-label="Cmen home">
+      <svg viewBox="0 0 32 32" width="28" height="28" aria-hidden="true"><path d="M22 10c-2-2.4-9-2.6-11.4 1.6-2.2 3.8-1.4 8.6 2 10.8 3 1.9 7.2 1.2 9.4-1.4" fill="none" stroke="#7aa2ff" stroke-width="2.6" stroke-linecap="round"/><circle cx="23.5" cy="8.5" r="2.6" fill="#ff8fc0"/></svg>
+      Cmen <span class="ver">v0.0.1</span>
+    </a>
+    <div class="nav-links" id="navLinks">
+      <a href="#why">Why</a>
+      <a href="#playground">Playground</a>
+      <a href="#examples">Examples</a>
+      <a href="#docs">Docs</a>
+      <a href="#status">Status</a>
+    </div>
+    <a class="gh-btn" id="ghBtn" href="https://github.com/Kp7700/cmen"
+        target="_blank"
+        rel="noopener noreferrer"
+        aria-label="View source repository on GitHub">
+      <svg width="15" height="15" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M12 .5C5.6.5.5 5.6.5 12c0 5.1 3.3 9.4 7.9 10.9.6.1.8-.2.8-.6v-2c-3.2.7-3.9-1.5-3.9-1.5-.5-1.3-1.3-1.7-1.3-1.7-1-.7.1-.7.1-.7 1.2.1 1.8 1.2 1.8 1.2 1 1.8 2.7 1.3 3.4 1 .1-.8.4-1.3.7-1.6-2.6-.3-5.3-1.3-5.3-5.7 0-1.3.4-2.3 1.2-3.1-.1-.3-.5-1.5.1-3.1 0 0 1-.3 3.2 1.2a11 11 0 0 1 5.8 0C17.3 4.7 18.3 5 18.3 5c.6 1.6.2 2.8.1 3.1.7.8 1.2 1.8 1.2 3.1 0 4.4-2.7 5.4-5.3 5.7.4.4.8 1.1.8 2.2v3.2c0 .3.2.7.8.6 4.6-1.5 7.9-5.8 7.9-10.9C23.5 5.6 18.4.5 12 .5z"/></svg>
+      Source
+</a>
+    <button class="menu-btn" id="menuBtn" aria-label="Open menu" aria-expanded="false">
+      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M3 6h18M3 12h18M3 18h18"/></svg>
+    </button>
+  </div>
+</nav>
+<div class="m-menu" id="mMenu">
+  <a href="#why">Why</a><a href="#playground">Playground</a><a href="#examples">Examples</a><a href="#docs">Docs</a><a href="#status">Status</a>
+</div>
+
+<!-- ================= HERO ================= -->
+<header class="hero" id="top">
+  <canvas id="bg-motes" aria-hidden="true"></canvas>
+  <div class="wrap hero-in">
+    <div>
+      <div class="hero-badge"><i></i>v0.0.1 &mdash; experimental &amp; thriving</div>
+      <h1>Cmen<span class="dot">.</span></h1>
+      <div class="pron"><b>Cmen</b> /&#712;si&#720;m&#601;n/ &mdash; pronounced exactly how you think</div>
+      <div class="tagline">The language of <em>controlled release</em>.</div>
+      <p class="hero-sub">A modern experimental programming language engineered for performance, expression, and questionable terminology. Real syntax. Real interpreter. One joke, executed with total commitment.</p>
+      <div class="cta-row">
+        <a class="btn btn-primary" href="#playground">
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M8 5.14v14l11-7-11-7z"/></svg>
+          Try Cmen
+        </a>
+        <a class="btn btn-ghost" href="#docs">
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20M4 19.5A2.5 2.5 0 0 0 6.5 22H20V2H6.5A2.5 2.5 0 0 0 4 4.5v15z"/></svg>
+          Read Documentation
+        </a>
+      </div>
+      <div class="hero-meta">
+        <span>zero install</span><span>runs in your browser</span><span>1 joke, fully committed</span>
+      </div>
+    </div>
+    <div class="term" role="img" aria-label="Animated demonstration of a Cmen program being typed and run">
+      <div class="term-head"><span class="dots"><i></i><i></i><i></i></span><span class="term-file">main.cmen</span><span class="term-ver">cmen v0.0.1</span></div>
+      <pre class="term-body"><code id="heroCode"></code></pre>
+      <div class="term-out" id="heroOut" aria-hidden="true"></div>
+    </div>
+  </div>
+</header>
+
+<main>
+<!-- ================= WHY ================= -->
+<section class="sec" id="why">
+  <div class="wrap">
+    <span class="kicker">// 01 &mdash; why</span>
+    <h2>Forty years of C. One unfinished conversation.</h2>
+    <div class="why-grid">
+      <div>
+        <p class="why-big">Most languages are named after coffee, gemstones, or whichever letter got there first. We looked at everything the C family built &mdash; operating systems, databases, entire careers &mdash; and asked the question nobody else dared to ask: <span class="hl">what if the next generation was conceived in the open?</span></p>
+        <div class="why-body">
+          <p>Cmen is a small, coherent, genuinely working language wrapped in exactly one joke. Underneath the terminology you'll find values, variables, branching, loops, and functions &mdash; everything a first program needs, nothing it doesn't. The interpreter on this page is real. The commitment to the bit is also real.</p>
+          <p>We believe a programming language should be memorable. You will forget semicolon rules. You will never forget what <code style="font-size:14px;color:var(--teal)">ejaculate()</code> does.</p>
+        </div>
+      </div>
+      <div class="faq" aria-label="Frequently asked questions">
+        <div class="faq-item">
+          <h3>Is the name a double entendre?</h3>
+          <p>The name is a single entendre. We checked with legal. Legal resigned.</p>
+        </div>
+        <div class="faq-item">
+          <h3>Is Cmen production-ready?</h3>
+          <p>It is ready in the way a teenager is ready.</p>
+        </div>
+        <div class="faq-item">
+          <h3>What does it compile to?</h3>
+          <p>This page, mostly. The playground is a full interpreter running locally in your browser &mdash; no servers, no build step, no consequences.</p>
+        </div>
+        <div class="faq-item">
+          <h3>Can I use it at work?</h3>
+          <p>Technically. HR involvement is strongly correlated with the first code review.</p>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ================= FEATURES ================= -->
+<section class="sec" id="features">
+  <div class="wrap">
+    <span class="kicker">// 02 &mdash; features</span>
+    <h2>Features engineered for the next generation.</h2>
+    <p class="sec-lead">Every feature was reviewed, debated, and approved by a committee that no longer speaks to each other.</p>
+    <div class="ledger">
+      <div class="ledger-row">
+        <span class="ledger-idx">01</span>
+        <span class="ledger-name">Controlled Release</span>
+        <span class="ledger-desc">A dedicated output function with a name you will never forget, never mishear on a video call, and never explain to a coworker without consequences. <code>ejaculate()</code> writes to stdout and to your permanent record.</span>
+        <svg class="ledger-arrow" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M5 12h14M13 6l6 6-6 6"/></svg>
+      </div>
+      <div class="ledger-row">
+        <span class="ledger-idx">02</span>
+        <span class="ledger-name">Genetic Variables</span>
+        <span class="ledger-desc">Values are declared with <code>gene</code> and carried through the program's lifecycle. Constants are <code>seed</code>ed once and locked at conception. Some things you just don't mutate.</span>
+        <svg class="ledger-arrow" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M5 12h14M13 6l6 6-6 6"/></svg>
+      </div>
+      <div class="ledger-row">
+        <span class="ledger-idx">03</span>
+        <span class="ledger-name">Mutation Support</span>
+        <span class="ledger-desc">Reassign any gene with <code>mutate</code>. Change your values without an existential crisis &mdash; the runtime quietly remembers what you used to be, so you don't have to.</span>
+        <svg class="ledger-arrow" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M5 12h14M13 6l6 6-6 6"/></svg>
+      </div>
+      <div class="ledger-row">
+        <span class="ledger-idx">04</span>
+        <span class="ledger-name">Low-Level Ambitions</span>
+        <span class="ledger-desc">High-level convenience, low-level emotional stability. Close enough to the metal to feel important; far enough away not to get hurt.</span>
+        <svg class="ledger-arrow" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M5 12h14M13 6l6 6-6 6"/></svg>
+      </div>
+      <div class="ledger-row">
+        <span class="ledger-idx">05</span>
+        <span class="ledger-name">Reproducible Builds</span>
+        <span class="ledger-desc">Deterministic output on every run, verified by our test suite (one test). The compiler itself promises absolutely nothing about your lineage.</span>
+        <svg class="ledger-arrow" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M5 12h14M13 6l6 6-6 6"/></svg>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ================= SYNTAX GLANCE ================= -->
+<section class="sec" id="syntax">
+  <div class="wrap">
+    <span class="kicker">// 03 &mdash; syntax</span>
+    <h2>The whole language, at a glance.</h2>
+    <p class="sec-lead">Cmen has eleven keywords. You already understand all of them, which is either great design or a problem for the orientation session.</p>
+    <div class="glance">
+      <div class="glance-row"><code>cum main { ... }</code><span>Declares a block of execution. <i>cum main</i> is where every program begins. All functions are conceived the same way.</span></div>
+      <div class="glance-row"><code>gene x = v;</code><span>Declares a mutable variable, capable of carrying a value through the program's lifecycle.</span></div>
+      <div class="glance-row"><code>seed x = v;</code><span>Declares a constant. Fixed at conception. Attempting to mutate one is a compile-time lesson.</span></div>
+      <div class="glance-row"><code>mutate x = v;</code><span>Reassigns an existing gene. Change is possible. Growth is optional.</span></div>
+      <div class="glance-row"><code>mate a + b</code><span>The affinity operator. Combines values; if either side is text, they concatenate. Opposites attract; strings merge.</span></div>
+      <div class="glance-row"><code>grow i from 1 to 5 { ... }</code><span>Repetition. Counts inclusively from start to end &mdash; Cmen believes in commitment.</span></div>
+      <div class="glance-row"><code>when (c) { ... } otherwise { ... }</code><span>Conditional execution. Fertilizes exactly one branch.</span></div>
+      <div class="glance-row"><code>release v;</code><span>Returns a value from a <i>cum</i> block. Emits it into the world.</span></div>
+      <div class="glance-row"><code>die("reason");</code><span>Terminates execution immediately. For when the program has seen enough.</span></div>
+      <div class="glance-row"><code>ejaculate(v, ...);</code><span>Standard output. Evaluates the expressions and writes them to the console. You will never look this up twice.</span></div>
+    </div>
+  </div>
+</section>
+
+<!-- ================= PLAYGROUND ================= -->
+<section class="sec" id="playground">
+  <div class="wrap">
+    <span class="kicker">// 04 &mdash; playground</span>
+    <h2>Try Cmen. Right here. Right now.</h2>
+    <p class="sec-lead">A complete Cmen interpreter, compiled into this very page. Write a program, press Run, and witness the release. Errors included at no extra charge.</p>
+    <div class="pg">
+      <div class="panel">
+        <div class="panel-head">
+          <span class="panel-title">
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M16 18l6-6-6-6M8 6l-6 6 6 6"/></svg>
+            editor &mdash; main.cmen
+          </span>
+          <span class="spacer"></span>
+          <select class="mini-select" id="pgExample" aria-label="Load an example program"></select>
+          <button class="mini-btn primary" id="runBtn">
+            <svg width="11" height="11" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M8 5.14v14l11-7-11-7z"/></svg>
+            Run
+          </button>
+        </div>
+        <div class="editor-wrap">
+          <div class="ed-gutter" aria-hidden="true"><div class="ed-nums" id="edNums">1</div></div>
+          <div class="code-area">
+            <pre aria-hidden="true"><code id="edHl"></code></pre>
+            <textarea id="edTa" spellcheck="false" autocapitalize="off" autocomplete="off" aria-label="Cmen code editor"></textarea>
+          </div>
+        </div>
+      </div>
+      <div class="panel">
+        <div class="panel-head">
+          <span class="panel-title">
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M4 17l6-6-6-6M12 19h8"/></svg>
+            console
+          </span>
+          <span class="spacer"></span>
+          <button class="mini-btn" id="clearBtn">Clear</button>
+        </div>
+        <div class="console-body" id="console" aria-live="polite"></div>
+      </div>
+    </div>
+    <p class="pg-hint">Press <kbd>Ctrl</kbd> + <kbd>Enter</kbd> (or <kbd>Cmd</kbd> + <kbd>Enter</kbd>) to run. Everything executes locally &mdash; nothing leaves your browser, much like certain other releases.</p>
+  </div>
+</section>
+
+<!-- ================= EXAMPLES ================= -->
+<section class="sec" id="examples">
+  <div class="wrap">
+    <span class="kicker">// 05 &mdash; examples</span>
+    <h2>Examples, ready to release.</h2>
+    <p class="sec-lead">Every example below runs in the real interpreter. Pick one, study it, run it, then pretend you wrote it.</p>
+    <div class="ex-grid">
+      <div class="ex-list" id="exList" role="tablist" aria-label="Example programs"></div>
+      <div class="ex-detail" id="exDetail"></div>
+    </div>
+  </div>
+</section>
+
+<!-- ================= DOCS ================= -->
+<section class="sec" id="docs">
+  <div class="wrap">
+    <span class="kicker">// 06 &mdash; documentation</span>
+    <h2>The Documentation.</h2>
+    <p class="sec-lead">Technically accurate. Emotionally unavailable. Every code sample is runnable.</p>
+    <div class="docs-grid">
+      <nav class="docs-nav" id="docsNav" aria-label="Documentation sections"></nav>
+      <div class="docs-page" id="docsPage"></div>
+    </div>
+  </div>
+</section>
+
+<!-- ================= STATUS ================= -->
+<section class="sec" id="status">
+  <div class="wrap">
+    <span class="kicker">// 07 &mdash; compiler status</span>
+    <h2>Compiler Status</h2>
+    <p class="sec-lead">Full transparency. We publish our build health the way other projects publish their roadmaps: honestly, and to mild alarm.</p>
+    <div class="status-grid">
+      <div class="term">
+        <div class="term-head"><span class="dots"><i></i><i></i><i></i></span><span class="term-file">cmen &mdash; status</span></div>
+        <div class="status-lines">
+          <div class="status-prompt"><b>$</b> cmen --status</div>
+          <div class="srow"><span class="k">Cmen Compiler</span><span class="lead"></span><span class="v">v0.0.1 (build &ldquo;first-frost&rdquo;)</span></div>
+          <div class="srow"><span class="k">Status</span><span class="lead"></span><span class="v warn">under active development</span></div>
+          <div class="srow"><span class="k">Current phase</span><span class="lead"></span><span class="v warn">experimental reproduction</span></div>
+          <div class="srow"><span class="k">Stability</span><span class="lead"></span><span class="v bad">surprisingly questionable</span></div>
+          <div class="srow"><span class="k">Self-hosting</span><span class="lead"></span><span class="v bad">no</span></div>
+          <div class="srow"><span class="k">Self-awareness</span><span class="lead"></span><span class="v bad">debatably</span></div>
+          <div class="srow"><span class="k">Test suite</span><span class="lead"></span><span class="v ok">1 test, passing</span></div>
+          <div class="srow"><span class="k">Next release</span><span class="lead"></span><span class="v">when it's ready</span></div>
+        </div>
+      </div>
+      <div class="status-side">
+        <p><strong>Honest disclosure:</strong> Cmen is an experimental toy language. The interpreter running on this page is real and complete for the documented subset. Everything else &mdash; the compiler above, the release artifacts, the roadmap &mdash; is a group commitment to a bit.</p>
+        <p>Use Cmen for education, entertainment, and quietly ruining code reviews.</p>
+        <div>
+          <button class="btn btn-ghost" id="dlBtn">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4M7 10l5 5 5-5M12 15V3"/></svg>
+            cmen-v0.0.1.tar.gz
+          </button>
+          <button class="btn btn-ghost" id="npmBtn">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M8 16v-8h8v8"/></svg>
+            npm install -g cmen
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+</main>
+
+<!-- ================= FOOTER ================= -->
+<footer>
+  <div class="wrap">
+    <div class="foot-in">
+      <div>
+        <div class="foot-brand">
+          <svg viewBox="0 0 32 32" width="26" height="26" aria-hidden="true"><path d="M22 10c-2-2.4-9-2.6-11.4 1.6-2.2 3.8-1.4 8.6 2 10.8 3 1.9 7.2 1.2 9.4-1.4" fill="none" stroke="#7aa2ff" stroke-width="2.6" stroke-linecap="round"/><circle cx="23.5" cy="8.5" r="2.6" fill="#ff8fc0"/></svg>
+          Cmen
+        </div>
+        <p class="foot-tag">The language of controlled release. Engineered with restraint, named without any.</p>
+      </div>
+      <div class="foot-links">
+        <a href="#playground">Playground</a>
+        <a href="#examples">Examples</a>
+        <a href="#docs">Docs</a>
+        <a href="#top">Back to top</a>
+      </div>
+    </div>
+    <p class="foot-fine">Cmen v0.0.1 &mdash; released under the Do-Whatever-You-Want-But-It's-Your-Lineage-Now license.<br>Not affiliated with the letter C, any biology textbook, or any life choice you made at 2 a.m. No reproduction rights reserved.</p>
+  </div>
+</footer>
+
+<div id="toasts" aria-live="polite"></div>
+
+<script>
+/* =====================================================
+   Cmen — syntax highlighter
+===================================================== */
+function escHtml(s){return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');}
+const HL_RE = /(#[^\n]*)|("(?:\\.|[^"\\\n])*"|'(?:\\.|[^'\\\n])*')|\b(cum|gene|seed|mutate|grow|release|die|when|otherwise|from|to|and|or|not|mate|true|false)\b|\b(ejaculate|length|text|number)\b|\b(\d+(?:\.\d+)?)\b/g;
+function highlight(src){
+  return escHtml(src).replace(HL_RE,function(m,com,str,kw,bt,num){
+    if(com)return '<span class="tc">'+m+'</span>';
+    if(str)return '<span class="ts">'+m+'</span>';
+    if(kw) return '<span class="tk">'+m+'</span>';
+    if(bt) return '<span class="tb">'+m+'</span>';
+    if(num)return '<span class="tn">'+m+'</span>';
+    return m;
+  });
+}
+
+/* =====================================================
+   Cmen — tokenizer
+===================================================== */
+const KW = new Set(['cum','gene','seed','mutate','grow','release','die','when','otherwise','from','to','and','or','not','mate','true','false']);
+class CmenError extends Error{
+  constructor(msg,line){super(msg);this.line=line;}
+}
+function perr(msg,line){return new CmenError(msg,line);}
+
+function tokenize(src){
+  const toks=[]; let i=0, line=1;
+  const n=src.length;
+  while(i<n){
+    const c=src[i];
+    if(c==='\n'){line++;i++;continue;}
+    if(c===' '||c==='\t'||c==='\r'){i++;continue;}
+    if(c==='#'){while(i<n&&src[i]!=='\n')i++;continue;}
+    if(/[A-Za-z_]/.test(c)){
+      let j=i; while(j<n&&/[A-Za-z0-9_]/.test(src[j]))j++;
+      const w=src.slice(i,j);
+      toks.push({t:KW.has(w)?'kw':'ident',v:w,line}); i=j; continue;
+    }
+    if(/[0-9]/.test(c)){
+      let j=i; while(j<n&&/[0-9.]/.test(src[j]))j++;
+      const raw=src.slice(i,j);
+      if((raw.match(/\./g)||[]).length>1) throw perr('invalid number "'+raw+'" — even we allow at most one decimal point',line);
+      toks.push({t:'num',v:parseFloat(raw),line}); i=j; continue;
+    }
+    if(c==='"'||c==="'"){
+      const q=c; let j=i+1,s='';
+      while(j<n&&src[j]!==q){
+        if(src[j]==='\\'){
+          const e=src[j+1];
+          if(e===undefined||e==='\n') throw perr('unterminated string literal — dangling escape',line);
+          s += e==='n'?'\n' : e==='t'?'\t' : e;
+          j+=2;
+        }else{
+          if(src[j]==='\n') throw perr('unterminated string literal — missing closing '+q,line);
+          s+=src[j]; j++;
+        }
+      }
+      if(j>=n) throw perr('unterminated string literal — missing closing '+q,line);
+      toks.push({t:'str',v:s,line}); i=j+1; continue;
+    }
+    const two=src.substr(i,2);
+    if(two==='=='||two==='!='||two==='<='||two==='>='){toks.push({t:'op',v:two,line});i+=2;continue;}
+    if('+-*/%()<>{},;=<>'.includes(c)){toks.push({t:'op',v:c,line});i++;continue;}
+    throw perr('unexpected character "'+c+'"',line);
+  }
+  toks.push({t:'eof',v:'end of file',line});
+  return toks;
+}
+
+/* =====================================================
+   Cmen — parser (recursive descent → AST)
+===================================================== */
+function show(tok){
+  if(tok.t==='eof')return 'end of file';
+  if(tok.t==='str')return '"'+tok.v+'"';
+  return tok.v;
+}
+function parse(toks){
+  let p=0;
+  const peek=()=>toks[p];
+  const at=(t,v)=>toks[p].t===t&&(v===undefined||toks[p].v===v);
+  const atKw=w=>at('kw',w), atOp=o=>at('op',o);
+  const nx=()=>toks[p++];
+  function expectOp(o,ctx){
+    if(!atOp(o)) throw perr("expected '"+o+"'"+(ctx?' '+ctx:'')+", found '"+show(peek())+"'",peek().line);
+    return nx();
+  }
+  function expectIdent(what){
+    if(!at('ident')) throw perr('expected '+(what||'a name')+", found '"+show(peek())+"'",peek().line);
+    return nx().v;
+  }
+
+  function parseBlock(){
+    expectOp('{','to open the block');
+    const stmts=[];
+    while(!atOp('}')&&!at('eof')) stmts.push(parseStmt());
+    if(at('eof')) throw perr("missing '}' — this block was never closed",peek().line);
+    nx();
+    return {k:'block',stmts};
+  }
+
+  function parseFunc(){
+    const line=nx().line; // 'cum'
+    const name=expectIdent('a name after "cum"');
+    let params=[];
+    if(atOp('(')){
+      nx();
+      if(!atOp(')')){
+        do{ params.push(expectIdent('a parameter name')); }while(atOp(',')&&nx());
+      }
+      expectOp(')','after parameters');
+    }
+    const body=parseBlock();
+    return {k:'func',name,params,body,line};
+  }
+
+  function parseStmt(){
+    const tok=peek();
+    if(atKw('gene')||atKw('seed')){
+      const kind=nx().v;
+      const name=expectIdent('a variable name after "'+kind+'"');
+      if(!atOp('=')) throw perr("expected '=' in a "+kind+" declaration — try: "+kind+" "+name+" = value;",peek().line);
+      nx();
+      const e=parseExpr();
+      if(!atOp(';')) throw perr("expected ';' to end the "+kind+" declaration, found '"+show(peek())+"'",peek().line);
+      nx();
+      return {k:'decl',kind,name,e,line:tok.line};
+    }
+    if(atKw('mutate')){
+      nx();
+      const name=expectIdent('a variable name after "mutate"');
+      if(!atOp('=')) throw perr("expected '=' after 'mutate "+name+"' — try: mutate "+name+" = value;",peek().line);
+      nx();
+      const e=parseExpr();
+      if(!atOp(';')) throw perr("expected ';' to end the mutation, found '"+show(peek())+"'",peek().line);
+      nx();
+      return {k:'assign',name,e,line:tok.line};
+    }
+    if(atKw('grow')){
+      nx();
+      const v=expectIdent('a counter name after "grow"');
+      let from=null;
+      if(atKw('from')){ nx(); from=parseExpr(); }
+      if(!atKw('to')) throw perr("expected 'to' in a grow loop — try: grow "+v+" from 1 to 5 { ... }",peek().line);
+      nx();
+      const to=parseExpr();
+      const body=parseBlock();
+      return {k:'grow',v,from,to,body,line:tok.line};
+    }
+    if(atKw('when')){
+      nx();
+      expectOp('(','after "when"');
+      const cond=parseExpr();
+      expectOp(')','after the condition');
+      const then=parseBlock();
+      let els=null;
+      if(atKw('otherwise')){
+        nx();
+        if(atKw('when')) els={k:'block',stmts:[parseStmt()]};
+        else els=parseBlock();
+      }
+      return {k:'when',cond,then,els,line:tok.line};
+    }
+    if(atKw('release')){
+      nx();
+      let e=null;
+      if(!atOp(';')) e=parseExpr();
+      if(!atOp(';')) throw perr("expected ';' after release, found '"+show(peek())+"'",peek().line);
+      nx();
+      return {k:'release',e,line:tok.line};
+    }
+    if(atKw('die')){
+      nx();
+      let e=null;
+      if(atOp('(')){
+        nx();
+        if(!atOp(')')) e=parseExpr();
+        expectOp(')','after die(...) — try: die; or die("reason");');
+      }
+      if(!atOp(';')) throw perr("expected ';' after die, found '"+show(peek())+"'",peek().line);
+      nx();
+      return {k:'die',e,line:tok.line};
+    }
+    if(at('ident')&&toks[p+1].t==='op'&&toks[p+1].v==='='){
+      const name=nx().v; nx(); // ident, '='
+      const e=parseExpr();
+      if(!atOp(';')) throw perr("expected ';' to end the assignment, found '"+show(peek())+"'",peek().line);
+      nx();
+      return {k:'assign',name,e,line:tok.line};
+    }
+    // expression statement (e.g. a function call)
+    const e=parseExpr();
+    if(!atOp(';')) throw perr("expected ';' to end the statement, found '"+show(peek())+"'",peek().line);
+    nx();
+    return {k:'expr',e,line:tok.line};
+  }
+
+  /* expressions */
+  function parseExpr(){ return parseOr(); }
+  function parseOr(){
+    let l=parseAnd();
+    while(atKw('or')){ const line=nx().line; const r=parseAnd(); l={k:'or',l,r,line}; }
+    return l;
+  }
+  function parseAnd(){
+    let l=parseNot();
+    while(atKw('and')){ const line=nx().line; const r=parseNot(); l={k:'and',l,r,line}; }
+    return l;
+  }
+  function parseNot(){
+    if(atKw('not')){ const line=nx().line; return {k:'not',e:parseNot(),line}; }
+    return parseCmp();
+  }
+  function parseCmp(){
+    const l=parseAdd();
+    if(at('op')&&['==','!=','<','>','<=','>='].includes(peek().v)){
+      const op=nx();
+      const r=parseAdd();
+      return {k:'bin',op:op.v,l,r,line:op.line};
+    }
+    return l;
+  }
+  function parseAdd(){
+    let l=parseMul();
+    while(atOp('+')||atOp('-')){
+      const op=nx(); const r=parseMul();
+      l={k:'bin',op:op.v,l,r,line:op.line};
+    }
+    return l;
+  }
+  function parseMul(){
+    let l=parseUnary();
+    while(atOp('*')||atOp('/')||atOp('%')){
+      const op=nx(); const r=parseUnary();
+      l={k:'bin',op:op.v,l,r,line:op.line};
+    }
+    return l;
+  }
+  function parseUnary(){
+    if(atOp('-')){ const line=nx().line; return {k:'neg',e:parseUnary(),line}; }
+    if(atKw('mate')){ const line=nx().line; return {k:'mate',e:parseUnary(),line}; }
+    return parsePrimary();
+  }
+  function parsePrimary(){
+    const tok=peek();
+    if(tok.t==='num'){ nx(); return {k:'lit',v:tok.v,line:tok.line}; }
+    if(tok.t==='str'){ nx(); return {k:'lit',v:tok.v,line:tok.line}; }
+    if(atKw('true')||atKw('false')){ nx(); return {k:'lit',v:tok.v==='true',line:tok.line}; }
+    if(atOp('(')){ nx(); const e=parseExpr(); expectOp(')','to close the expression'); return e; }
+    if(at('ident')){
+      const name=nx().v;
+      if(atOp('(')){
+        nx();
+        const args=[];
+        if(!atOp(')')){
+          do{ args.push(parseExpr()); }while(atOp(',')&&nx());
+        }
+        expectOp(')','after the arguments');
+        return {k:'call',name,args,line:tok.line};
+      }
+      return {k:'var',name,line:tok.line};
+    }
+    throw perr("unexpected '"+show(tok)+"' in an expression",tok.line);
+  }
+
+  /* program */
+  const funcs=[];
+  if(at('eof')) throw perr('this file is empty — nothing was ever conceived',1);
+  while(!at('eof')){
+    if(!atKw('cum')) throw perr("expected 'cum' — every Cmen program is a set of cum blocks, e.g. cum main { ... }",peek().line);
+    funcs.push(parseFunc());
+  }
+  if(!funcs.some(f=>f.name==='main')) throw perr('no entry point found — every program needs a "cum main { ... }" block. Life finds a way; yours has not yet.',1);
+  return {funcs};
+}
+
+/* =====================================================
+   Cmen — evaluator (tree-walking interpreter)
+===================================================== */
+class Env{
+  constructor(parent){this.m=new Map();this.parent=parent;}
+  find(name){let e=this;while(e){if(e.m.has(name))return e;e=e.parent;}return null;}
+  define(name,val,seed){this.m.set(name,{v:val,seed:!!seed});}
+}
+class ReleaseSig{constructor(v){this.v=v;}}
+class DieSig{constructor(msg,line){this.msg=msg;this.line=line;}}
+function rerr(msg,line){return new CmenError(msg,line);}
+function stringify(v){
+  if(v===true)return 'true';
+  if(v===false)return 'false';
+  return String(v);
+}
+const BUILTINS={
+  ejaculate:{min:0,fn:(args,ctx)=>{ ctx.out(args.map(stringify).join(' ')); return null; }},
+  length:{min:1,fn:(args,ctx,line)=>{
+    const v=args[0];
+    if(typeof v!=='string') throw rerr('length() expects text, got '+typeof v,line);
+    return v.length;
+  }},
+  text:{min:1,fn:(args)=>stringify(args[0])},
+  number:{min:1,fn:(args,line)=>{
+    const v=args[0];
+    if(typeof v==='number')return v;
+    const n=Number(v);
+    if(v===''||isNaN(n)) throw rerr('number() cannot convert '+JSON.stringify(typeof v==='string'?v:stringify(v))+' into a number — some things resist conversion',line);
+    return n;
+  }}
+};
+
+function runProgram(src,emit){
+  const ctx={
+    steps:0, depth:0, funcs:new Map(),
+    globals:new Env(null),
+    out:function(t){ emit.out(t); }
+  };
+  let prog;
+  try{ prog=parse(tokenize(src)); }
+  catch(e){
+    if(e instanceof CmenError) emit.err('Syntax error — line '+e.line+': '+e.message);
+    else emit.err('Syntax error: '+e.message);
+    return false;
+  }
+  prog.funcs.forEach(f=>ctx.funcs.set(f.name,f));
+  const t0=performance.now();
+  function step(line){
+    ctx.steps++;
+    if(ctx.steps>300000) throw rerr('runtime limit exceeded (300,000 steps) — this program needs a hobby',line);
+  }
+  function execBlock(b,env){
+    for(const s of b.stmts) exec(s,env);
+  }
+  function exec(s,env){
+    step(s.line);
+    switch(s.k){
+      case 'decl':
+        env.define(s.name, ev(s.e,env), s.kind==='seed');
+        break;
+      case 'assign':{
+        const cell=env.find(s.name);
+        if(!cell) throw rerr('"'+s.name+'" was never conceived — declare it first with gene '+s.name+' = ...',s.line);
+        if(cell.m.get(s.name).seed) throw rerr('cannot mutate "'+s.name+'" — seeds are immutable. It was like this at conception.',s.line);
+        cell.m.get(s.name).v=ev(s.e,env);
+        break;
+      }
+      case 'when':
+        if(ev(s.cond,env)) execBlock(s.then,new Env(env));
+        else if(s.els) execBlock(s.els,new Env(env));
+        break;
+      case 'grow':{
+        const fv=s.from?ev(s.from,env):1;
+        const tv=ev(s.to,env);
+        if(typeof fv!=='number'||typeof tv!=='number') throw rerr('grow bounds must be numbers',s.line);
+        for(let i=fv;i<=tv;i++){
+          step(s.line);
+          const le=new Env(env);
+          le.define(s.v,i,false);
+          execBlock(s.body,le);
+        }
+        break;
+      }
+      case 'release': throw new ReleaseSig(s.e?ev(s.e,env):null);
+      case 'die': throw new DieSig(s.e?stringify(ev(s.e,env)):null,s.line);
+      case 'expr': ev(s.e,env); break;
+      case 'block': execBlock(s,env); break;
+    }
+  }
+  function callFn(fn,args,line){
+    if(ctx.depth>300) throw rerr('stack overflow — descent too deep (recursion limit: 300)',line);
+    if(fn.params.length!==args.length)
+      throw rerr('"'+fn.name+'" expected '+fn.params.length+' argument'+(fn.params.length===1?'':'s')+', got '+args.length,line);
+    const env=new Env(ctx.globals);
+    fn.params.forEach((p,i)=>env.define(p,args[i],false));
+    ctx.depth++;
+    try{ execBlock(fn.body,env); }
+    catch(e){ if(e instanceof ReleaseSig)return e.v; throw e; }
+    finally{ ctx.depth--; }
+    return null;
+  }
+  function ev(n,env){
+    switch(n.k){
+      case 'lit': return n.v;
+      case 'var':{
+        const cell=env.find(n.name);
+        if(!cell) throw rerr('"'+n.name+'" was never conceived — declare it first with gene '+n.name+' = ...',n.line);
+        return cell.m.get(n.name).v;
+      }
+      case 'neg':{
+        const v=ev(n.e,env);
+        if(typeof v!=='number') throw rerr('unary "-" needs a number, got '+stringify(v),n.line);
+        return -v;
+      }
+      case 'mate': return stringify(ev(n.e,env));
+      case 'not': return !ev(n.e,env);
+      case 'and': return !!(ev(n.l,env)&&ev(n.r,env));
+      case 'or':  return !!(ev(n.l,env)||ev(n.r,env));
+      case 'bin':{
+        const op=n.op, l=ev(n.l,env), r=ev(n.r,env);
+        switch(op){
+          case '+':
+            if(typeof l==='string'||typeof r==='string') return stringify(l)+stringify(r);
+            if(typeof l!=='number'||typeof r!=='number') throw rerr('type mismatch: "+" needs numbers or text, got '+typeof l+' + '+typeof r,n.line);
+            return l+r;
+          case '-': case '*':
+            if(typeof l!=='number'||typeof r!=='number') throw rerr('type mismatch: "'+op+'" needs numbers, got '+typeof l+' and '+typeof r,n.line);
+            return op==='-'?l-r:l*r;
+          case '/': case '%':{
+            if(typeof l!=='number'||typeof r!=='number') throw rerr('type mismatch: "'+op+'" needs numbers, got '+typeof l+' and '+typeof r,n.line);
+            if(r===0) throw rerr((op==='/'?'division':'modulo')+' by zero — even Cmen has limits',n.line);
+            return op==='/'?l/r:l%r;
+          }
+          case '==': return l===r;
+          case '!=': return l!==r;
+          default:{ // < > <= >=
+            if(typeof l===typeof r&&(typeof l==='number'||typeof l==='string')){
+              if(op==='<')return l<r; if(op==='>')return l>r;
+              if(op==='<=')return l<=r; return l>=r;
+            }
+            throw rerr('type mismatch: "'+op+'" needs two numbers or two texts',n.line);
+          }
+        }
+      }
+      case 'call':{
+        const args=n.args.map(a=>ev(a,env));
+        const fn=ctx.funcs.get(n.name);
+        if(fn) return callFn(fn,args,n.line);
+        const b=BUILTINS[n.name];
+        if(b){
+          if(args.length<b.min) throw rerr('"'+n.name+'" expected at least '+b.min+' argument'+(b.min===1?'':'s')+', got '+args.length,n.line);
+          return b.fn(args,ctx,n.line);
+        }
+        throw rerr('"'+n.name+'" is not defined — nothing by that name was ever conceived',n.line);
+      }
+    }
+  }
+  try{
+    const main=ctx.funcs.get('main');
+    const v=callFn(main,[],1);
+    const ms=(performance.now()-t0).toFixed(1);
+    emit.sys('program finished in '+ms+'ms'+(v!==null&&v!==undefined?' — main released '+stringify(v):''));
+    return true;
+  }catch(e){
+    if(e instanceof DieSig){
+      emit.err('fatal'+(e.line?' — line '+e.line:'')+': '+(e.msg??'the program chose to die'));
+      emit.sys('process terminated (exit code 1)');
+      return false;
+    }
+    if(e instanceof CmenError){
+      emit.err('Runtime error'+(e.line?' — line '+e.line:'')+': '+e.message);
+      return false;
+    }
+    emit.err('Internal error: '+e.message);
+    return false;
+  }
+}
+
+/* =====================================================
+   Examples
+===================================================== */
+const EXAMPLES=[
+ {id:'hello',name:'Hello, World',desc:'Tradition matters. Output via ejaculate().',code:
+`# hello.cmen — tradition matters
+cum main {
+
+    ejaculate("Hello, World!");
+
+}`},
+ {id:'genes',name:'Genes & Seeds',desc:'Mutable genes, immutable seeds.',code:
+`# genes.cmen — declaring values
+cum main {
+
+    gene name    = "Cmen";
+    gene version = 0.01;
+    seed founder = "anonymous, for legal reasons";
+
+    ejaculate(name, "v" + version);
+    ejaculate("Founder:", founder);
+
+}`},
+ {id:'mate',name:'Mate',desc:'Combining two values into a lineage.',code:
+`# mate.cmen — combining values
+cum main {
+
+    gene father = "C";
+    gene mother = "men";
+
+    gene child = mate father + mother;
+
+    ejaculate(child);
+
+}`},
+ {id:'math',name:'Arithmetic',desc:'Numbers, precedence, remainders.',code:
+`# math.cmen — arithmetic
+cum main {
+
+    gene cells  = 3 * 4 + 10 / 2;    # 17 — precedence respected
+    gene halved = (cells - 1) / 8;   # 2
+    gene odd    = 17 % 5;            # 2
+
+    ejaculate("cells:", cells);
+    ejaculate("halved:", halved);
+    ejaculate("remainder:", odd);
+
+}`},
+ {id:'mutation',name:'Mutation',desc:'Reassigning a gene with mutate.',code:
+`# mutation.cmen — change is possible
+cum main {
+
+    gene energy = 10;
+
+    mutate energy = energy + 5;
+
+    ejaculate("Energy:", energy);
+
+}`},
+ {id:'grow',name:'Loops',desc:'grow counts inclusively. Commitment.',code:
+`# growth.cmen — iteration
+cum main {
+
+    grow i from 1 to 5 {
+        ejaculate("generation", i, "ready");
+    }
+
+    ejaculate("Lineage complete.");
+
+}`},
+ {id:'when',name:'Conditions',desc:'Branching with when / otherwise.',code:
+`# decisions.cmen — branching
+cum main {
+
+    gene temp = 36.8;
+
+    when (temp > 37.5) {
+        ejaculate("Febrile. Deploy more features.");
+    } otherwise when (temp < 36.0) {
+        ejaculate("Hypothermic. Ship slower.");
+    } otherwise {
+        ejaculate("Vitals nominal. Keep coding.");
+    }
+
+}`},
+ {id:'functions',name:'Functions',desc:'Define with cum, return with release.',code:
+`# functions.cmen — reuse the lineage
+cum add(a, b) {
+    release a + b;
+}
+
+cum greet(name) {
+    release mate "hello, " + name;
+}
+
+cum main {
+    ejaculate(add(20, 22));
+    ejaculate(greet("world"));
+}`},
+ {id:'committee',name:'The Naming Committee',desc:'Minutes of meeting #47. Deliberately funny.',code:
+`# committee.cmen — how the name was chosen
+cum main {
+
+    gene proposal = "C";
+
+    ejaculate("Meeting #47 of the Naming Committee begins.");
+
+    grow attempt from 1 to 4 {
+        mutate proposal = mate proposal + "e";
+        ejaculate("Proposal " + attempt + ": " + proposal + "men");
+    }
+
+    ejaculate("Motion to keep the original spelling. Carried.");
+    ejaculate("Cmen ships in v0.0.1. Nobody signs their name.");
+}`}
+];
+
+/* =====================================================
+   Code-block builder + registry (run / copy)
+===================================================== */
+const runRegistry=[];
+function cb(code,opts){
+  opts=opts||{};
+  const idx=runRegistry.push(code)-1;
+  let btns='';
+  if(opts.run) btns+='<button class="mini-btn" data-run="'+idx+'">Run</button>';
+  btns+='<button class="mini-btn" data-copy="'+idx+'">Copy</button>';
+  return '<div class="codeblock"><div class="cb-head"><span class="cb-name">'+(opts.name||'main.cmen')+'</span><span class="cb-actions">'+btns+'</span></div><pre><code>'+highlight(code)+'</code></pre></div>';
+}
+document.addEventListener('click',function(e){
+  const run=e.target.closest('[data-run]');
+  if(run){ runInPlayground(runRegistry[+run.dataset.run]); return; }
+  const cp=e.target.closest('[data-copy]');
+  if(cp){
+    const code=runRegistry[+cp.dataset.copy];
+    if(navigator.clipboard&&navigator.clipboard.writeText){
+      navigator.clipboard.writeText(code).then(function(){toast('Copied to clipboard. Handle with discretion.');},function(){toast('Copy failed. Some releases do not take.');});
+    }else{
+      const ta=document.createElement('textarea');
+      ta.value=code;document.body.appendChild(ta);ta.select();
+      try{document.execCommand('copy');toast('Copied to clipboard. Handle with discretion.');}catch(_){toast('Copy failed.');}
+      document.body.removeChild(ta);
+    }
+  }
+});
+
+/* =====================================================
+   Playground
+===================================================== */
+const edTa=document.getElementById('edTa');
+const edHl=document.getElementById('edHl');
+const edNums=document.getElementById('edNums');
+const consoleEl=document.getElementById('console');
+const runBtn=document.getElementById('runBtn');
+const clearBtn=document.getElementById('clearBtn');
+const pgExample=document.getElementById('pgExample');
+let outLines=0;
+
+function refreshEditor(){
+  edHl.innerHTML=highlight(edTa.value)+'\n';
+  const count=edTa.value.split('\n').length;
+  let nums='';
+  for(let i=1;i<=count;i++) nums+=i+'\n';
+  edNums.textContent=nums;
+  syncScroll();
+}
+function syncScroll(){
+  edHl.parentNode.scrollTop=edTa.scrollTop;
+  edHl.parentNode.scrollLeft=edTa.scrollLeft;
+  edNums.style.transform='translateY(-'+edTa.scrollTop+'px)';
+}
+edTa.addEventListener('input',refreshEditor);
+edTa.addEventListener('scroll',syncScroll);
+edTa.addEventListener('keydown',function(e){
+  if(e.key==='Tab'){
+    e.preventDefault();
+    edTa.setRangeText('    ',edTa.selectionStart,edTa.selectionEnd,'end');
+    refreshEditor();
+  }
+});
+document.addEventListener('keydown',function(e){
+  if((e.ctrlKey||e.metaKey)&&e.key==='Enter'&&isVisible(document.getElementById('playground'))){
+    e.preventDefault(); doRun();
+  }
+});
+function isVisible(el){
+  const r=el.getBoundingClientRect();
+  return r.top<window.innerHeight&&r.bottom>0;
+}
+function addLine(text,kind){
+  const d=document.createElement('div');
+  d.className='cline c-'+kind;
+  d.textContent=text===''?' ':text;
+  consoleEl.appendChild(d);
+  consoleEl.scrollTop=consoleEl.scrollHeight;
+}
+function clearConsole(){ consoleEl.innerHTML=''; outLines=0; }
+clearBtn.addEventListener('click',function(){ clearConsole(); addLine('console cleared.','sys'); });
+
+const emit={
+  out:function(t){
+    outLines++;
+    if(outLines>500) throw rerr('output limit reached (500 lines) — controlled release means *controlled*',0);
+    addLine(t,'out');
+  },
+  err:function(t){ addLine(t,'err'); },
+  sys:function(t){ addLine(t,'sys'); }
+};
+function doRun(){
+  clearConsole();
+  addLine('cmen run main.cmen','echo');
+  runBtn.disabled=true;
+  const label=runBtn.innerHTML;
+  runBtn.textContent='Running\u2026';
+  setTimeout(function(){
+    try{ runProgram(edTa.value,emit); }
+    finally{ runBtn.disabled=false; runBtn.innerHTML=label; }
+  },80);
+}
+runBtn.addEventListener('click',doRun);
+
+function setEditor(code){
+  edTa.value=code;
+  refreshEditor();
+}
+function runInPlayground(code){
+  setEditor(code);
+  document.getElementById('playground').scrollIntoView({behavior:'smooth'});
+  setTimeout(doRun,480);
+}
+
+/* example dropdown */
+EXAMPLES.forEach(function(ex,i){
+  const o=document.createElement('option');
+  o.value=i; o.textContent=ex.name;
+  pgExample.appendChild(o);
+});
+pgExample.addEventListener('change',function(){
+  setEditor(EXAMPLES[+pgExample.value].code);
+  addLine('loaded example: '+EXAMPLES[+pgExample.value].name.toLowerCase()+'.cmen','sys');
+});
+
+/* =====================================================
+   Examples gallery (master-detail)
+===================================================== */
+const exList=document.getElementById('exList');
+const exDetail=document.getElementById('exDetail');
+let exActive=0;
+EXAMPLES.forEach(function(ex,i){
+  const b=document.createElement('button');
+  b.className='ex-item';
+  b.setAttribute('role','tab');
+  b.innerHTML='<span class="ex-name"><i>'+String(i+1).padStart(2,'0')+'</i>'+ex.name+'</span><span class="ex-desc">'+ex.desc+'</span>';
+  b.addEventListener('click',function(){ selectExample(i); });
+  exList.appendChild(b);
+});
+function selectExample(i){
+  exActive=i;
+  const ex=EXAMPLES[i];
+  Array.prototype.forEach.call(exList.children,function(el,j){
+    el.classList.toggle('active',j===i);
+    el.setAttribute('aria-selected',j===i?'true':'false');
+  });
+  exDetail.innerHTML=
+    '<div class="ex-detail-head"><h3>'+ex.name+'</h3><span class="ex-file">'+ex.id+'.cmen</span></div>'+
+    '<p class="ex-note">'+ex.desc+'</p>'+
+    cb(ex.code,{run:true,name:ex.id+'.cmen'});
+}
+selectExample(0);
+
+/* =====================================================
+   Documentation
+===================================================== */
+function exCode(id){ return EXAMPLES.find(function(e){return e.id===id;}).code; }
+
+const DOCS=[
+{id:'intro',title:'Introduction',html:function(){
+  return '<h3>What is Cmen?</h3>'+
+  '<p><strong>Cmen</strong> (pronounced /&#712;si&#720;m&#601;n/) is an experimental programming language built around one design decision that no one stopped in time. Beneath the terminology sits a small, coherent language: values, variables, branching, loops, and functions &mdash; everything a first program needs.</p>'+
+  '<div class="doc-callout"><b>Disclaimer:</b> Cmen is a toy language. The interpreter embedded in this website is real and implements the full documented subset. There is no native compiler. There was never a native compiler. Do not check.</div>'+
+  '<p>Every Cmen program starts the same way:</p>'+
+  cb(exCode('hello'),{run:true,name:'hello.cmen'})+
+  '<p>The <code>ejaculate()</code> function evaluates its arguments and writes the result to standard output. You have now learned 40% of the language. The rest is below.</p>';
+}},
+{id:'why',title:'Why Cmen?',html:function(){
+  return '<h3>The case for Cmen</h3>'+
+  '<p>Most programming languages optimize for one thing: performance, safety, or expressiveness. Cmen optimizes for something far rarer &mdash; <strong>retention</strong>. You can forget any keyword in any language. You will never forget ours.</p>'+
+  '<p>Second, Cmen is honest. Other languages hide their output behind names like <code>print</code>, <code>println</code>, or <code>System.out.println</code> &mdash; euphemisms, the lot of them. Cmen calls its standard output function exactly what it is, and accepts the consequences like a language with nothing to hide.</p>'+
+  '<h3>Design principles</h3>'+
+  '<ul>'+
+  '<li><strong>One joke, fully committed.</strong> Half-measures are for other languages.</li>'+
+  '<li><strong>Small surface.</strong> Eleven keywords. The whole reference fits on one screen, above.</li>'+
+  '<li><strong>Readable first.</strong> A Cmen program reads like a slightly unwell English sentence &mdash; but it reads.</li>'+
+  '<li><strong>Deadpan always.</strong> The compiler never winks. Neither should you.</li>'+
+  '</ul>'+
+  '<h3>What Cmen is not</h3>'+
+  '<p>Cmen is not C. It is not a superset, subset, or cousin of C. It is a distinct language that simply owes the letter C an apology. It is also not production software, a medical reference, or a lifestyle.</p>';
+}},
+{id:'start',title:'Getting Started',html:function(){
+  return '<h3>Installation</h3>'+
+  '<p>The official installation procedure:</p>'+
+  '<ol>'+
+  '<li>Scroll up to the <a href="#playground">playground</a>.</li>'+
+  '<li>That is the whole procedure.</li>'+
+  '</ol>'+
+  '<p>Requirements: a browser. That is the entire system stack. There is no CLI, no package manager, and no daemon quietly judging you in the background.</p>'+
+  '<h3>The CLI (fictional)</h3>'+
+  '<p>For completeness, here is what installing Cmen from a terminal would look like, if installation were possible:</p>'+
+  cb('$ npm install -g cmen\nnpm ERR! 404 Not Found — of course there is no package\nnpm ERR! There never was a package\nnpm ERR! A summary of the situation:',{name:'terminal — fictional',run:false})+
+  '<h3>Your first program</h3>'+
+  cb(exCode('mate'),{run:true,name:'first.cmen'})+
+  '<p>Program anatomy: a Cmen file is a set of <code>cum</code> blocks. The block named <code>main</code> is where execution begins. Statements end with <code>;</code>. Blocks use <code>{ }</code>. Comments start with <code>#</code>.</p>';
+}},
+{id:'syntax',title:'Syntax',html:function(){
+  return '<h3>The shape of a program</h3>'+
+  '<p>Cmen has no top-level code. Everything lives inside a <code>cum</code> block:</p>'+
+  cb('cum main {\n    # your program starts here\n    ejaculate("it begins");\n}',{run:true})+
+  '<h3>The rules</h3>'+
+  '<ul>'+
+  '<li>Statements end with <code>;</code>. Release them properly.</li>'+
+  '<li>Blocks are delimited by <code>{ }</code>. Indentation is for humans; the parser is indifferent to your aesthetics.</li>'+
+  '<li>Comments start with <code>#</code> and run to the end of the line.</li>'+
+  '<li>Strings use double or single quotes. Escapes: <code>\\n</code>, <code>\\t</code>, <code>\\"</code>, <code>\\\\</code>.</li>'+
+  '<li>Names contain letters, digits, and <code>_</code>, and cannot start with a digit or collide with a keyword.</li>'+
+  '</ul>'+
+  '<h3>Keyword reference</h3>'+
+  '<table class="dtable"><thead><tr><th>Keyword</th><th>Purpose</th></tr></thead><tbody>'+
+  '<tr><td><code>cum</code></td><td>Declares an executable block. <code>cum main</code> is the entry point; any other named block is a function.</td></tr>'+
+  '<tr><td><code>gene</code></td><td>Declares a mutable variable.</td></tr>'+
+  '<tr><td><code>seed</code></td><td>Declares an immutable constant.</td></tr>'+
+  '<tr><td><code>mutate</code></td><td>Reassigns an existing gene.</td></tr>'+
+  '<tr><td><code>mate</code></td><td>Affinity operator. Combines values; strings concatenate.</td></tr>'+
+  '<tr><td><code>grow</code></td><td>Counting loop.</td></tr>'+
+  '<tr><td><code>when</code> / <code>otherwise</code></td><td>Conditional execution.</td></tr>'+
+  '<tr><td><code>release</code></td><td>Returns a value from a block.</td></tr>'+
+  '<tr><td><code>die</code></td><td>Terminates the program.</td></tr>'+
+  '<tr><td><code>and</code> / <code>or</code> / <code>not</code></td><td>Logical operators, spelled out like adults do.</td></tr>'+
+  '</tbody></table>';
+}},
+{id:'variables',title:'Variables',html:function(){
+  return '<h3>gene — the mutable variable</h3>'+
+  '<p>Declares a variable capable of carrying a value through the program\'s lifecycle:</p>'+
+  cb('cum main {\n    gene counter = 0;\n    gene name    = "Cmen";\n\n    mutate counter = counter + 1;\n    ejaculate(name, "has run", counter, "time(s)");\n}',{run:true})+
+  '<p>Variables are dynamically typed: they happily hold numbers, text, or booleans, and change type without complaint. The runtime has seen more than you have.</p>'+
+  '<h3>seed — the immutable constant</h3>'+
+  '<p>A <code>seed</code> is fixed at conception. It cannot be reassigned, mutated, or negotiated with:</p>'+
+  cb('cum main {\n    seed constant = 42;\n\n    ejaculate("The answer is", constant);\n\n    mutate constant = 43;   # this line will fail\n}',{run:true,name:'seeds.cmen'})+
+  '<div class="doc-note">Try running the example above. The first line prints; the mutation fails with <code>cannot mutate "constant" — seeds are immutable. It was like this at conception.</code> The runtime has opinions, and it is not wrong.</div>'+
+  '<h3>mutate — change without crisis</h3>'+
+  '<p>Reassign any gene with <code>mutate</code>. Plain assignment (<code>x = ...;</code>) also works, but <code>mutate</code> is the ceremonial form and we would appreciate you using it.</p>';
+}},
+{id:'output',title:'Output',html:function(){
+  return '<h3>ejaculate(value, ...)</h3>'+
+  '<p>Evaluates the supplied expressions and writes the results to standard output, joined by single spaces, followed by a newline. Accepts any number of arguments of any type:</p>'+
+  cb('cum main {\n    ejaculate("Hello, World!");\n    ejaculate("2 + 2 =", 2 + 2);\n    ejaculate(true, "is", true);\n}',{run:true})+
+  '<p>Numbers are formatted plainly: integers print without decimal points, everything else prints as-is.</p>'+
+  '<h3>Builtin helpers</h3>'+
+  '<table class="dtable"><thead><tr><th>Function</th><th>Description</th></tr></thead><tbody>'+
+  '<tr><td><code>text(x)</code></td><td>Converts any value to its text form.</td></tr>'+
+  '<tr><td><code>number(x)</code></td><td>Converts text to a number. Fails loudly if the text resists conversion.</td></tr>'+
+  '<tr><td><code>length(s)</code></td><td>Returns the number of characters in a text value.</td></tr>'+
+  '</tbody></table>'+
+  '<p>There is no <code>print</code>, no <code>echo</code>, no <code>log</code>, and no aliasing. One function. One name. Zero plausible deniability.</p>';
+}},
+{id:'operators',title:'Operators',html:function(){
+  return '<h3>Arithmetic</h3>'+
+  '<table class="dtable"><thead><tr><th>Operator</th><th>Behavior</th></tr></thead><tbody>'+
+  '<tr><td><code>+</code></td><td>Adds two numbers. If <em>either</em> side is text, concatenates instead.</td></tr>'+
+  '<tr><td><code>-</code> <code>*</code></td><td>Subtraction, multiplication. Numbers only.</td></tr>'+
+  '<tr><td><code>/</code></td><td>Division. Division by zero is an error &mdash; even Cmen has limits.</td></tr>'+
+  '<tr><td><code>%</code></td><td>Remainder.</td></tr>'+
+  '</tbody></table>'+
+  '<h3>Comparison</h3>'+
+  '<table class="dtable"><thead><tr><th>Operator</th><th>Behavior</th></tr></thead><tbody>'+
+  '<tr><td><code>==</code> <code>!=</code></td><td>Equality. Values of different types are simply not equal; the runtime does not force them to socialize.</td></tr>'+
+  '<tr><td><code>&lt;</code> <code>&gt;</code> <code>&lt;=</code> <code>&gt;=</code></td><td>Ordering on two numbers or two texts (lexicographic). Mixed types are a type mismatch.</td></tr>'+
+  '</tbody></table>'+
+  '<h3>Logic</h3>'+
+  '<p><code>and</code>, <code>or</code>, and <code>not</code> &mdash; spelled out, short-circuiting, returning booleans.</p>'+
+  '<h3>mate — the affinity operator</h3>'+
+  '<p>Prefix operator. Converts its operand to text, for when you want concatenation to be explicit and on the record:</p>'+
+  cb('cum main {\n    gene father = "C";\n    gene mother = "men";\n\n    gene child = mate father + mother;\n\n    ejaculate(child);\n}',{run:true})+
+  '<p><code>mate father + mother</code> parses as <code>mate(father) + mother</code>, and since the left side is now text, the <code>+</code> concatenates. The union produces <code>Cmen</code>. It always was going to.</p>';
+}},
+{id:'conditions',title:'Conditions',html:function(){
+  return '<h3>when / otherwise</h3>'+
+  '<p>Conditional execution. The condition is evaluated; exactly one branch is fertilized:</p>'+
+  cb('cum main {\n    gene temp = 36.8;\n\n    when (temp > 37.5) {\n        ejaculate("Febrile. Deploy more features.");\n    } otherwise {\n        ejaculate("Vitals nominal. Keep coding.");\n    }\n}',{run:true})+
+  '<h3>Chaining</h3>'+
+  '<p>Chain conditions with <code>otherwise when</code>:</p>'+
+  cb('when (x > 100) {\n    ejaculate("large");\n} otherwise when (x > 10) {\n    ejaculate("medium");\n} otherwise {\n    ejaculate("modest");\n}',{run:true,name:'chain.cmen'})+
+  '<h3>Truthiness</h3>'+
+  '<p>Comparison operators produce booleans (<code>true</code> / <code>false</code>). A <code>when</code> condition accepts any value: numbers are true when non-zero, text is true when non-empty. The runtime tries not to judge what you feed it, but it keeps records.</p>';
+}},
+{id:'loops',title:'Loops',html:function(){
+  return '<h3>grow</h3>'+
+  '<p>The counting loop. Iterates a counter inclusively from <code>from</code> to <code>to</code> &mdash; Cmen believes in commitment, so the end value is included:</p>'+
+  cb('cum main {\n    gene total = 0;\n\n    grow i from 1 to 10 {\n        mutate total = total + i;\n    }\n\n    ejaculate("1+2+...+10 =", total);\n}',{run:true})+
+  '<p>The <code>from</code> clause is optional and defaults to 1:</p>'+
+  cb('cum main {\n    grow n to 3 {\n        ejaculate("heartbeat", n);\n    }\n}',{run:true})+
+  '<h3>Limits</h3>'+
+  '<p>The interpreter enforces a runtime budget of 300,000 steps per program. A <code>grow</code> loop that never reaches its end will be gently, firmly stopped. Counting downward is not supported; use <code>when</code> and regret, like everyone else.</p>';
+}},
+{id:'functions',title:'Functions',html:function(){
+  return '<h3>Everything is conceived with cum</h3>'+
+  '<p>In Cmen, every function is declared with <code>cum</code> &mdash; the entry point, your helpers, all of it. We are consistent to a fault:</p>'+
+  cb('cum add(a, b) {\n    release a + b;\n}\n\ncum greet(name) {\n    release mate "hello, " + name;\n}\n\ncum main {\n    ejaculate(add(20, 22));\n    ejaculate(greet("world"));\n}',{run:true})+
+  '<h3>release</h3>'+
+  '<p><code>release expression;</code> returns a value from the current <code>cum</code> block and emits it to the caller. A block without a <code>release</code> returns nothing at all &mdash; it simply ends, like most conversations.</p>'+
+  '<h3>Recursion</h3>'+
+  '<p>Supported, up to a depth of 300, at which point the interpreter reports <code>stack overflow — descent too deep</code>:</p>'+
+  cb('cum fact(n) {\n    when (n <= 1) {\n        release 1;\n    }\n    release n * fact(n - 1);\n}\n\ncum main {\n    ejaculate("5! =", fact(5));\n}',{run:true})+
+  '<div class="doc-note">Function arguments are passed by value. Scopes are lexical: a function sees its own genes and the global ones &mdash; nothing else. Boundaries matter.</div>';
+}},
+{id:'errors',title:'Errors',html:function(){
+  return '<h3>The error philosophy</h3>'+
+  '<p>Cmen errors are precise, line-numbered, and slightly judgmental. Syntax errors are reported before anything runs; runtime errors stop execution at the scene of the incident.</p>'+
+  '<h3>die</h3>'+
+  '<p>Terminate your own program with dignity and a message:</p>'+
+  cb('cum main {\n    gene reason = "we both know why";\n\n    die(reason);\n\n    ejaculate("never printed");  # unreachable, obviously\n}',{run:true})+
+  '<h3>Field guide to common errors</h3>'+
+  '<table class="dtable"><thead><tr><th>Message</th><th>What it means</th></tr></thead><tbody>'+
+  '<tr><td>no entry point found</td><td>Every program needs a <code>cum main { ... }</code> block. Life finds a way; yours has not yet.</td></tr>'+
+  '<tr><td>&#8230;was never conceived</td><td>You used a variable before declaring it with <code>gene</code>.</td></tr>'+
+  '<tr><td>cannot mutate a seed</td><td>Seeds are immutable. Fixed at conception.</td></tr>'+
+  '<tr><td>expected \';\'</td><td>Statements end with semicolons. Release them properly.</td></tr>'+
+  '<tr><td>division by zero</td><td>Even Cmen has limits.</td></tr>'+
+  '<tr><td>stack overflow</td><td>Recursion deeper than 300. Descent too deep.</td></tr>'+
+  '<tr><td>output limit reached</td><td>More than 500 lines. Controlled release means <em>controlled</em>.</td></tr>'+
+  '<tr><td>unterminated string</td><td>A quote opened and never closed. We have all been there.</td></tr>'+
+  '</tbody></table>';
+}},
+{id:'expage',title:'Examples',html:function(){
+  return '<h3>Highlights from the gallery</h3>'+
+  '<p>The full gallery lives in the <a href="#examples">Examples</a> section &mdash; every one of these runs in the live interpreter:</p>'+
+  '<h3>Variables and constants</h3>'+cb(exCode('genes'),{run:true,name:'genes.cmen'})+
+  '<h3>Loops and accumulation</h3>'+cb(exCode('grow'),{run:true,name:'growth.cmen'})+
+  '<h3>Functions</h3>'+cb(exCode('functions'),{run:true,name:'functions.cmen'})+
+  '<p>And when you are comfortable, meet the people who named the language:</p>'+
+  cb(exCode('committee'),{run:true,name:'committee.cmen'})+
+  '<div class="doc-note">Pressing <strong>Run</strong> on any sample loads it into the <a href="#playground">playground</a> and executes it. Nothing is simulated. The language is fictional; the interpreter is not.</div>';
+}}
+];
+
+const docsNav=document.getElementById('docsNav');
+const docsPage=document.getElementById('docsPage');
+DOCS.forEach(function(d,i){
+  const b=document.createElement('button');
+  b.textContent=d.title;
+  b.addEventListener('click',function(){ selectDoc(i); });
+  docsNav.appendChild(b);
+});
+function selectDoc(i){
+  Array.prototype.forEach.call(docsNav.children,function(el,j){
+    el.classList.toggle('active',j===i);
+  });
+  docsPage.innerHTML=DOCS[i].html();
+  docsPage.style.animation='none';
+  void docsPage.offsetWidth;
+  docsPage.style.animation='';
+  if(window.innerWidth<=960) docsNav.scrollIntoView({block:'nearest'});
+}
+selectDoc(0);
+
+/* =====================================================
+   Toasts
+===================================================== */
+function toast(msg){
+  const t=document.createElement('div');
+  t.className='toast';
+  t.textContent=msg;
+  document.getElementById('toasts').appendChild(t);
+  setTimeout(function(){ t.classList.add('bye'); },3200);
+  setTimeout(function(){ t.remove(); },3600);
+}
+document.getElementById('ghBtn').addEventListener('click',function(){
+  toast('There is no repository. Cmen exists beyond version control.');
+});
+document.getElementById('dlBtn').addEventListener('click',function(){
+  toast('Download failed successfully. cmen-v0.0.1.tar.gz contains nothing, faithfully.');
+});
+document.getElementById('npmBtn').addEventListener('click',function(){
+  toast('npm ERR! 404 — of course there is no package. There never was a package.');
+});
+
+/* =====================================================
+   Mobile menu
+===================================================== */
+const menuBtn=document.getElementById('menuBtn');
+const mMenu=document.getElementById('mMenu');
+menuBtn.addEventListener('click',function(){
+  const open=mMenu.classList.toggle('open');
+  menuBtn.setAttribute('aria-expanded',open?'true':'false');
+});
+mMenu.addEventListener('click',function(e){
+  if(e.target.tagName==='A'){ mMenu.classList.remove('open'); menuBtn.setAttribute('aria-expanded','false'); }
+});
+
+/* =====================================================
+   Nav active-state tracking
+===================================================== */
+const navAnchors=document.querySelectorAll('#navLinks a');
+const sectionIds=['why','playground','examples','docs','status'];
+const io=new IntersectionObserver(function(entries){
+  entries.forEach(function(en){
+    if(en.isIntersecting){
+      navAnchors.forEach(function(a){
+        a.classList.toggle('active',a.getAttribute('href')==='#'+en.target.id);
+      });
+    }
+  });
+},{rootMargin:'-30% 0px -60% 0px'});
+sectionIds.forEach(function(id){
+  const el=document.getElementById(id);
+  if(el) io.observe(el);
+});
+
+/* =====================================================
+   Hero typing animation
+===================================================== */
+const HERO_SNIPPETS=[
+ {src:'cum main {\n    gene father = "C";\n    gene mother = "men";\n\n    gene child = mate father + mother;\n\n    ejaculate(child);\n}',
+  out:['Cmen']},
+ {src:'cum main {\n    grow i from 1 to 3 {\n        ejaculate("generation", i, "ready");\n    }\n\n    release 0;\n}',
+  out:['generation 1 ready','generation 2 ready','generation 3 ready','— main released 0']}
+];
+const heroCode=document.getElementById('heroCode');
+const heroOut=document.getElementById('heroOut');
+const sleep=function(ms){return new Promise(function(r){setTimeout(r,ms);});};
+function heroAddOut(text,cls){
+  const d=document.createElement('div');
+  d.className=cls;
+  d.textContent=text;
+  heroOut.appendChild(d);
+}
+async function heroLoop(){
+  const reduce=window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+  let k=0;
+  while(true){
+    const snip=HERO_SNIPPETS[k%HERO_SNIPPETS.length]; k++;
+    heroOut.innerHTML='';
+    if(reduce){
+      heroCode.innerHTML=highlight(snip.src);
+      heroAddOut('$ cmen run main.cmen','runline');
+      snip.out.forEach(function(o){ heroAddOut(o,'oline'); });
+      heroAddOut('program finished in 0.3ms','sysline');
+      await sleep(8000);
+      continue;
+    }
+    for(let i=1;i<=snip.src.length;i++){
+      heroCode.innerHTML=highlight(snip.src.slice(0,i))+'<span class="cursor"></span>';
+      await sleep(snip.src[i-1]==='\n'?70:16+Math.random()*26);
+    }
+    await sleep(380);
+    heroAddOut('$ cmen run main.cmen','runline');
+    await sleep(520);
+    for(const o of snip.out){ heroAddOut(o,'oline'); await sleep(300); }
+    heroAddOut('program finished in 0.3ms','sysline');
+    await sleep(3600);
+    heroCode.innerHTML='';
+  }
+}
+
+/* =====================================================
+   Background motes (subtle, on-theme)
+===================================================== */
+function initMotes(){
+  const cv=document.getElementById('bg-motes');
+  const ctx=cv.getContext('2d');
+  let W,H,parts;
+  const reduce=window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+  function resize(){
+    const hero=cv.parentNode;
+    W=cv.width=hero.offsetWidth;
+    H=cv.height=hero.offsetHeight;
+  }
+  function seed(){
+    parts=[];
+    for(var i=0;i<36;i++){
+      parts.push({
+        x:Math.random()*W, y:Math.random()*H,
+        r:0.8+Math.random()*1.8,
+        vy:-(0.06+Math.random()*0.22),
+        ph:Math.random()*Math.PI*2,
+        a:0.08+Math.random()*0.22,
+        pink:Math.random()<0.28
+      });
+    }
+  }
+  resize(); seed();
+  window.addEventListener('resize',function(){ resize(); seed(); });
+  if(reduce){ /* draw one static frame */
+    parts.forEach(function(p){
+      ctx.globalAlpha=p.a;
+      ctx.fillStyle=p.pink?'#ff8fc0':'#7aa2ff';
+      ctx.beginPath();ctx.arc(p.x,p.y,p.r,0,6.283);ctx.fill();
+    });
+    ctx.globalAlpha=1;
+    return;
+  }
+  let t=0;
+  function frame(){
+    if(document.hidden){ requestAnimationFrame(frame); return; }
+    t+=0.016;
+    ctx.clearRect(0,0,W,H);
+    parts.forEach(function(p){
+      p.y+=p.vy;
+      p.x+=Math.sin(t*0.7+p.ph)*0.14;
+      if(p.y<-6){ p.y=H+6; p.x=Math.random()*W; }
+      // trail
+      ctx.globalAlpha=p.a*0.35;
+      ctx.strokeStyle=p.pink?'#ff8fc0':'#7aa2ff';
+      ctx.lineWidth=p.r*0.7;
+      ctx.beginPath();
+      ctx.moveTo(p.x,p.y+10+p.r*4);
+      ctx.lineTo(p.x,p.y);
+      ctx.stroke();
+      // head
+      ctx.globalAlpha=p.a;
+      ctx.fillStyle=p.pink?'#ff8fc0':'#7aa2ff';
+      ctx.beginPath();
+      ctx.arc(p.x,p.y,p.r,0,6.283);
+      ctx.fill();
+    });
+    ctx.globalAlpha=1;
+    requestAnimationFrame(frame);
+  }
+  requestAnimationFrame(frame);
+}
+
+/* =====================================================
+   Boot
+===================================================== */
+setEditor(EXAMPLES[0].code);
+clearConsole();
+addLine('Cmen playground ready. Write a program, then press Run.','sys');
+addLine('Tip: load an example from the dropdown above the editor.','sys');
+initMotes();
+heroLoop();
+</script>
+</body>
+</html>

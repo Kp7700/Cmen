@@ -1,0 +1,6 @@
+{
+  "name": "Cmen — The language of controlled release",
+  "description": "Cmen is an experimental programming language engineered for performance, expression, and questionable terminology.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
