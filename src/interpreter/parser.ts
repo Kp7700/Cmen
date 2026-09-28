@@ -226,8 +226,17 @@ export class Parser {
     if (this.match('kw', 'grow')) {
       const varToken = this.consume('ident', undefined, "Expected loop variable name after 'grow'");
       let fromExpr: ASTNode | null = null;
-      if (this.match('kw', 'from')) {
+      if (this.check('kw', 'from')) {
+        this.advance();
         fromExpr = this.expression();
+      } else if (this.check('kw', 'to')) {
+        this.errors.push({
+          message: `Missing 'from' in 'grow' loop. Use an explicit starting value (e.g., 'grow ${varToken.value} from 1 to 5 { ... }'). The 'from' clause is required.`,
+          line: token.line,
+          col: token.col,
+          type: 'syntax',
+        });
+        throw new Error(`Missing 'from' in 'grow' loop at line ${token.line}`);
       }
       this.consume('kw', 'to', "Expected 'to' in 'grow' loop (e.g., 'grow i from 1 to 5 { ... }')");
       const toExpr = this.expression();

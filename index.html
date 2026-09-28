@@ -295,7 +295,7 @@ footer{padding:56px 0 64px}
   <div class="nav-in">
     <a class="brand" href="#top" aria-label="Cmen home">
       <svg viewBox="0 0 32 32" width="28" height="28" aria-hidden="true"><path d="M22 10c-2-2.4-9-2.6-11.4 1.6-2.2 3.8-1.4 8.6 2 10.8 3 1.9 7.2 1.2 9.4-1.4" fill="none" stroke="#7aa2ff" stroke-width="2.6" stroke-linecap="round"/><circle cx="23.5" cy="8.5" r="2.6" fill="#ff8fc0"/></svg>
-      Cmen <span class="ver">v0.0.1</span>
+      Cmen <span class="ver">v0.0.2</span>
     </a>
     <div class="nav-links" id="navLinks">
       <a href="#why">Why</a>
@@ -325,7 +325,7 @@ footer{padding:56px 0 64px}
   <canvas id="bg-motes" aria-hidden="true"></canvas>
   <div class="wrap hero-in">
     <div>
-      <div class="hero-badge"><i></i>v0.0.1 &mdash; experimental &amp; thriving</div>
+      <div class="hero-badge"><i></i>v0.0.2 &mdash; experimental &amp; thriving</div>
       <h1>Cmen<span class="dot">.</span></h1>
       <div class="pron"><b>Cmen</b> /&#712;si&#720;m&#601;n/ &mdash; pronounced exactly how you think</div>
       <div class="tagline">The language of <em>controlled release</em>.</div>
@@ -345,7 +345,7 @@ footer{padding:56px 0 64px}
       </div>
     </div>
     <div class="term" role="img" aria-label="Animated demonstration of a Cmen program being typed and run">
-      <div class="term-head"><span class="dots"><i></i><i></i><i></i></span><span class="term-file">main.cmen</span><span class="term-ver">cmen v0.0.1</span></div>
+      <div class="term-head"><span class="dots"><i></i><i></i><i></i></span><span class="term-file">main.cmen</span><span class="term-ver">cmen v0.0.2</span></div>
       <pre class="term-body"><code id="heroCode"></code></pre>
       <div class="term-out" id="heroOut" aria-hidden="true"></div>
     </div>
@@ -531,10 +531,11 @@ footer{padding:56px 0 64px}
         <div class="term-head"><span class="dots"><i></i><i></i><i></i></span><span class="term-file">cmen &mdash; status</span></div>
         <div class="status-lines">
           <div class="status-prompt"><b>$</b> cmen --status</div>
-          <div class="srow"><span class="k">Cmen Compiler</span><span class="lead"></span><span class="v">v0.0.1 (build &ldquo;first-frost&rdquo;)</span></div>
+          <div class="srow"><span class="k">Cmen Compiler</span><span class="lead"></span><span class="v">v0.0.2 (build &ldquo;first-frost&rdquo;)</span></div>
           <div class="srow"><span class="k">Status</span><span class="lead"></span><span class="v warn">under active development</span></div>
           <div class="srow"><span class="k">Current phase</span><span class="lead"></span><span class="v warn">experimental reproduction</span></div>
           <div class="srow"><span class="k">Stability</span><span class="lead"></span><span class="v bad">surprisingly questionable</span></div>
+          <div class="srow"><span class="k">Loops (<code style="font-size:inherit">grow</code>)</span><span class="lead"></span><span class="v ok">reproducing reliably since v0.0.2</span></div>
           <div class="srow"><span class="k">Self-hosting</span><span class="lead"></span><span class="v bad">no</span></div>
           <div class="srow"><span class="k">Self-awareness</span><span class="lead"></span><span class="v bad">debatably</span></div>
           <div class="srow"><span class="k">Test suite</span><span class="lead"></span><span class="v ok">1 test, passing</span></div>
@@ -547,7 +548,7 @@ footer{padding:56px 0 64px}
         <div>
           <button class="btn btn-ghost" id="dlBtn">
             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4M7 10l5 5 5-5M12 15V3"/></svg>
-            cmen-v0.0.1.tar.gz
+            cmen-v0.0.2.tar.gz
           </button>
           <button class="btn btn-ghost" id="npmBtn">
             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M8 16v-8h8v8"/></svg>
@@ -578,7 +579,7 @@ footer{padding:56px 0 64px}
         <a href="#top">Back to top</a>
       </div>
     </div>
-    <p class="foot-fine">Cmen v0.0.1 &mdash; released under the Do-Whatever-You-Want-But-It's-Your-Lineage-Now license.<br>Not affiliated with the letter C, any biology textbook, or any life choice you made at 2 a.m. No reproduction rights reserved.</p>
+    <p class="foot-fine">Cmen v0.0.2 &mdash; released under the Do-Whatever-You-Want-But-It's-Your-Lineage-Now license.<br>Not affiliated with the letter C, any biology textbook, or any life choice you made at 2 a.m. No reproduction rights reserved.</p>
   </div>
 </footer>
 
@@ -728,6 +729,7 @@ function parse(toks){
       const v=expectIdent('a counter name after "grow"');
       let from=null;
       if(atKw('from')){ nx(); from=parseExpr(); }
+      else if(atKw('to')){ throw perr("missing 'from' in a grow loop — use an explicit starting value: grow "+v+" from 1 to 5 { ... }. The 'from' clause is required.",peek().line); }
       if(!atKw('to')) throw perr("expected 'to' in a grow loop — try: grow "+v+" from 1 to 5 { ... }",peek().line);
       nx();
       const to=parseExpr();
@@ -937,8 +939,12 @@ function runProgram(src,emit){
         const fv=s.from?ev(s.from,env):1;
         const tv=ev(s.to,env);
         if(typeof fv!=='number'||typeof tv!=='number') throw rerr('grow bounds must be numbers',s.line);
+        if(fv>tv) throw rerr('grow cannot count backwards ('+fv+' to '+tv+') — descending loops are not supported. Use when and regret, like everyone else.',s.line);
+        let iters=0;
         for(let i=fv;i<=tv;i++){
           step(s.line);
+          iters++;
+          if(iters>10000) throw rerr('execution limit exceeded — maximum 10,000 loop iterations. The program may contain an infinite or excessively large loop.',s.line);
           const le=new Env(env);
           le.define(s.v,i,false);
           execBlock(s.body,le);
@@ -1110,6 +1116,30 @@ cum main {
     ejaculate("Lineage complete.");
 
 }`},
+ {id:'loopsum',name:'Loop Accumulation',desc:'Counting and summing with grow + mutate.',code:
+`# accumulation.cmen — controlled repetition
+cum main {
+
+    gene total = 0;
+
+    grow i from 1 to 10 {
+        mutate total = total + i;
+    }
+
+    ejaculate("Total:", total);
+
+}`},
+ {id:'nestedloops',name:'Nested Loops',desc:'grow inside grow. Generations squared.',code:
+`# nested.cmen — generations within generations
+cum main {
+
+    grow i from 1 to 2 {
+        grow j from 1 to 3 {
+            ejaculate(i, j);
+        }
+    }
+
+}`},
  {id:'when',name:'Conditions',desc:'Branching with when / otherwise.',code:
 `# decisions.cmen — branching
 cum main {
@@ -1153,7 +1183,7 @@ cum main {
     }
 
     ejaculate("Motion to keep the original spelling. Carried.");
-    ejaculate("Cmen ships in v0.0.1. Nobody signs their name.");
+    ejaculate("Cmen ships in v0.0.2. Nobody signs their name.");
 }`}
 ];
 
@@ -1519,7 +1549,7 @@ document.getElementById('ghBtn').addEventListener('click',function(){
   toast('There is no repository. Cmen exists beyond version control.');
 });
 document.getElementById('dlBtn').addEventListener('click',function(){
-  toast('Download failed successfully. cmen-v0.0.1.tar.gz contains nothing, faithfully.');
+  toast('Download failed successfully. cmen-v0.0.2.tar.gz contains nothing, faithfully.');
 });
 document.getElementById('npmBtn').addEventListener('click',function(){
   toast('npm ERR! 404 — of course there is no package. There never was a package.');

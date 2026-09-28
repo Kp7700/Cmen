@@ -277,9 +277,24 @@ export class Evaluator {
           );
         }
 
-        const loopEnv = new Environment(env);
+        if (startVal > endVal) {
+          throw new CmenRuntimeError(
+            `'grow' cannot count backwards (${startVal} to ${endVal}). Descending loops are not supported — use 'when' and regret, like everyone else.`,
+            stmt.line
+          );
+        }
+
+        let iterations = 0;
         for (let i = startVal; i <= endVal; i++) {
           this.tick(stmt.line);
+          iterations++;
+          if (iterations > 10000) {
+            throw new CmenRuntimeError(
+              'Execution limit exceeded — maximum 10,000 loop iterations. The program may contain an infinite or excessively large loop.',
+              stmt.line
+            );
+          }
+          const loopEnv = new Environment(env);
           loopEnv.define(stmt.varName, i, false);
           try {
             this.executeBlock(stmt.body, loopEnv);
