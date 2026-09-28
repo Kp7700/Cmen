@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import {
   Play,
   RotateCcw,
@@ -10,14 +10,38 @@ import {
   Sparkles,
   ChevronDown,
   Terminal,
+  Variable,
+  FunctionSquare,
 } from 'lucide-react';
 import { CMEN_EXAMPLES } from '../data/examples';
 import { runCmen, highlightCmenCode } from '../interpreter';
 import { ExecutionResult } from '../types';
+import {
+  applyAutoIndent,
+  applyAutoClose,
+  applyTab,
+  collectCmenVariables,
+  getCompletions,
+} from '../lib/editor';
 
 interface PlaygroundProps {
   initialCode?: string;
 }
+
+interface CompletionState {
+  list: string[];
+  wordStart: number;
+  wordEnd: number;
+  index: number;
+  top: number;
+  left: number;
+}
+
+const OPENERS = new Set(['(', '{', '[', '"', "'"]);
+const CLOSERS = new Set([')', '}', ']', '"', "'"]);
+
+/** Measures the width of one monospace character inside the editor font. */
+let charWidthCache: { key: string; width: number } | null = null;
 
 export const Playground: React.FC<PlaygroundProps> = ({ initialCode }) => {
   const [selectedExampleId, setSelectedExampleId] = useState<string>('hello-world');
@@ -32,6 +56,10 @@ export const Playground: React.FC<PlaygroundProps> = ({ initialCode }) => {
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const preRef = useRef<HTMLPreElement>(null);
   const lineNumbersRef = useRef<HTMLDivElement>(null);
+  const editorWrapRef = useRef<HTMLDivElement>(null);
+  const popupRef = useRef<HTMLDivElement>(null);
+
+  const [completion, setCompletion] = useState<CompletionState | null>(null);
 
   // Synchronize initial code if passed from Hero
   useEffect(() => {
@@ -39,6 +67,11 @@ export const Playground: React.FC<PlaygroundProps> = ({ initialCode }) => {
       setCode(initialCode);
     }
   }, [initialCode]);
+
+  // Close the suggestion popup whenever the loaded program changes wholesale.
+  useEffect(() => {
+    setCompletion(null);
+  }, [initialCode, selectedExampleId]);
 
   // Run on Ctrl+Enter / Cmd+Enter
   useEffect(() => {
@@ -112,23 +145,269 @@ export const Playground: React.FC<PlaygroundProps> = ({ initialCode }) => {
   const lineCount = Math.max(code.split('\n').length, 1);
   const lineNumbers = Array.from({ length: lineCount }, (_, i) => i + 1);
 
-  // Tab key indent handler
-  const handleKeyDownInTextarea = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
-    if (e.key === 'Tab') {
-      e.preventDefault();
-      const target = e.currentTarget;
-      const start = target.selectionStart;
-      const end = target.selectionEnd;
-
-      const newCode = code.substring(0, start) + '    ' + code.substring(end);
-      setCode(newCode);
-
-      setTimeout(() => {
-        if (textareaRef.current) {
-          textareaRef.current.selectionStart = textareaRef.current.selectionEnd = start + 4;
+  /**
+   * Applies an edit produced by one of the editor helpers (auto-indent,
+   * auto-close, tab, completion accept) and restores the exact caret/selection.
+   * The replacement is done through the textarea itself so that native browser
+   * undo/redo keeps working; React state then mirrors the same value.
+   */
+  const applyEditorEdit = useCallback(
+    (nextValue: string, selStart: number, selEnd: number, keepPopupOpen = false) => {
+      const ta = textareaRef.current;
+      if (ta && ta.value !== nextValue) {
+        try {
+          // Replace the whole buffer via the editing API (undo-friendly).
+          ta.setSelectionRange(0, ta.value.length);
+          document.execCommand('insertText', false, nextValue);
+        } catch {
+          /* execCommand unavailable — fall back to direct assignment below */
         }
-      }, 0);
+        if (ta.value !== nextValue) ta.value = nextValue;
+      }
+      if (ta) {
+        ta.focus();
+        ta.setSelectionRange(selStart, selEnd);
+        handleScroll();
+      }
+      setCode(nextValue);
+      if (!keepPopupOpen) setCompletion(null);
+      // Suggestions track every edit, including Enter/Tab/backspace edits.
+      requestAnimationFrame(() => {
+        const el = textareaRef.current;
+        refreshCompletionsRef.current(nextValue, el ? el.selectionStart : selStart);
+      });
+    },
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    []
+  );
+
+  /**
+   * Surgical single-character edit applied directly at the selection range —
+   * used for auto-close/type-over/backspace-pair so plain typing stays a
+   * native, fully undoable textarea operation (no full-buffer rewrite).
+   */
+  const applyLocalEdit = useCallback(
+    (nextValue: string, caret: number) => {
+      const ta = textareaRef.current;
+      if (ta) {
+        const start = ta.selectionStart;
+        try {
+          document.execCommand('insertText', false, nextValue.slice(start, caret));
+        } catch {
+          /* ignore — fall back below */
+        }
+        if (ta.value !== nextValue) {
+          ta.value = nextValue;
+        }
+        ta.focus();
+        ta.setSelectionRange(caret, caret);
+        handleScroll();
+      }
+      setCode(nextValue);
+    },
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    []
+  );
+
+  /** Measures the width of one monospace character inside the editor font. */
+  const measureCharWidth = useCallback((el: HTMLElement, fontSize: number): number => {
+    const fontFamily = window.getComputedStyle(el).fontFamily;
+    const key = `${fontFamily}|${fontSize}`;
+    if (charWidthCache && charWidthCache.key === key) return charWidthCache.width;
+    const canvas = document.createElement('canvas');
+    const ctx = canvas.getContext('2d');
+    let width = fontSize * 0.6;
+    if (ctx) {
+      ctx.font = `${fontSize}px ${fontFamily}`;
+      const m = ctx.measureText('M');
+      if (m && m.width > 0) width = m.width;
     }
+    charWidthCache = { key, width };
+    return width;
+  }, []);
+
+  /** Recomputes (or closes) the variable suggestion popup for the current caret. */
+  const refreshCompletions = useCallback((value: string, caret: number) => {
+    const comps = getCompletions(value, caret, collectCmenVariables(value));
+    if (!comps) {
+      setCompletion(null);
+      return;
+    }
+    const ta = textareaRef.current;
+    let top = 0;
+    let left = 0;
+    if (ta) {
+      const style = window.getComputedStyle(ta);
+      const fontSize = parseFloat(style.fontSize) || 14;
+      const lineHeight = parseFloat(style.lineHeight) || fontSize * 1.5;
+      const charWidth = measureCharWidth(ta, fontSize);
+
+      const textBefore = value.slice(0, caret);
+      const newlineCount = (textBefore.match(/\n/g) || []).length;
+      const lastNewline = textBefore.lastIndexOf('\n');
+      const col = caret - (lastNewline + 1);
+
+      const padTop = parseFloat(style.paddingTop) || 0;
+      const padLeft = parseFloat(style.paddingLeft) || 0;
+
+      const rawTop = padTop + newlineCount * lineHeight - ta.scrollTop + lineHeight + 2;
+      const rawLeft = padLeft + col * charWidth - ta.scrollLeft;
+
+      const wrap = editorWrapRef.current;
+      const maxW = wrap ? wrap.clientWidth : ta.clientWidth;
+      const maxH = wrap ? wrap.clientHeight : ta.clientHeight;
+      const popupW = 208; // w-52
+      const popupH = Math.min(comps.list.length, 6) * 30 + 8;
+
+      top = Math.min(rawTop, maxH - popupH - 4);
+      if (top < 2) top = 2;
+      left = Math.min(Math.max(rawLeft, 2), Math.max(2, maxW - popupW - 4));
+    }
+    setCompletion((prev) => ({
+      list: comps.list,
+      wordStart: comps.wordStart,
+      wordEnd: comps.wordEnd,
+      index: prev && prev.wordStart === comps.wordStart && prev.index < comps.list.length
+        ? prev.index
+        : 0,
+      top,
+      left,
+    }));
+  }, []);
+
+  /** Accepts the highlighted suggestion, replacing only the typed fragment. */
+  const acceptCompletion = useCallback(
+    (state: CompletionState) => {
+      const chosen = state.list[state.index];
+      if (!chosen) {
+        setCompletion(null);
+        return;
+      }
+      const nextValue = code.slice(0, state.wordStart) + chosen + code.slice(state.wordEnd);
+      const caret = state.wordStart + chosen.length;
+      applyEditorEdit(nextValue, caret, caret, true);
+      refreshCompletions(nextValue, caret);
+    },
+    [code, applyEditorEdit, refreshCompletions]
+  );
+
+  // Tab key indent handler + auto-closing pairs + auto-indent + autocomplete
+  const handleKeyDownInTextarea = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
+    const target = e.currentTarget;
+    const start = target.selectionStart;
+    const end = target.selectionEnd;
+
+    // --- Autocomplete navigation takes priority when the popup is open ---
+    if (completion) {
+      if (e.key === 'ArrowDown') {
+        e.preventDefault();
+        const idx = (completion.index + 1) % completion.list.length;
+        setCompletion({ ...completion, index: idx });
+        return;
+      }
+      if (e.key === 'ArrowUp') {
+        e.preventDefault();
+        const idx =
+          (completion.index - 1 + completion.list.length) % completion.list.length;
+        setCompletion({ ...completion, index: idx });
+        return;
+      }
+      if (e.key === 'Enter' || e.key === 'Tab') {
+        // Let Ctrl/Cmd+Enter keep running the program.
+        if (!(e.key === 'Enter' && (e.ctrlKey || e.metaKey))) {
+          e.preventDefault();
+          acceptCompletion(completion);
+          return;
+        }
+      }
+      if (e.key === 'Escape') {
+        e.preventDefault();
+        setCompletion(null);
+        return;
+      }
+    }
+
+    // --- Tab / Shift+Tab indentation (never moves focus away) ---
+    if (e.key === 'Tab' && !e.ctrlKey && !e.metaKey && !e.altKey) {
+      e.preventDefault();
+      const res = applyTab(code, start, end, e.shiftKey);
+      if (res) applyEditorEdit(res.value, res.selStart, res.selEnd);
+      return;
+    }
+
+    // --- Enter: auto indent ---
+    if (e.key === 'Enter' && !e.ctrlKey && !e.metaKey && !e.altKey) {
+      const res = applyAutoIndent(code, start, end);
+      if (res) {
+        e.preventDefault();
+        applyEditorEdit(res.value, res.caret, res.caret);
+      }
+      return;
+    }
+
+    // --- Brackets & quotes: auto-close / type-over ---
+    if (
+      (OPENERS.has(e.key) || CLOSERS.has(e.key)) &&
+      !e.ctrlKey && !e.metaKey && !e.altKey
+    ) {
+      const res = applyAutoClose(code, start, end, e.key);
+      if (res) {
+        e.preventDefault();
+        if (res.value === code) {
+          // Typing over an existing closer: just move the caret past it.
+          const ta = e.currentTarget;
+          ta.setSelectionRange(res.caret, res.caret);
+          setCompletion(null);
+        } else {
+          applyLocalEdit(res.value, res.caret);
+        }
+        return;
+      }
+    }
+
+    // --- Backspace between an auto-generated empty pair: delete both sides ---
+    if (e.key === 'Backspace' && !e.ctrlKey && !e.metaKey && !e.altKey && start === end) {
+      const res = applyAutoClose(code, start, end, e.key);
+      if (res) {
+        e.preventDefault();
+        applyEditorEdit(res.value, res.caret, res.caret, true);
+        return;
+      }
+    }
+  };
+
+  // After each edit settles, update suggestions from the new caret position.
+  const handleCodeChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
+    const value = e.target.value;
+    setCode(value);
+    if (completion) setCompletion(null);
+    // Defer until the DOM reflects the new value so measurement is accurate.
+    requestAnimationFrame(() => {
+      const ta = textareaRef.current;
+      refreshCompletions(value, ta ? ta.selectionStart : e.target.selectionEnd);
+    });
+  };
+
+  // Caret movement (clicks / arrows without typing) also refreshes suggestions.
+  const handleTextareaSelect = () => {
+    const ta = textareaRef.current;
+    if (!ta) return;
+    if (ta.selectionStart !== ta.selectionEnd) {
+      setCompletion(null);
+      return;
+    }
+    refreshCompletions(ta.value, ta.selectionStart);
+  };
+
+  const closeCompletionOnBlur = () => {
+    // Small delay so clicks on the popup still register before closing.
+    setTimeout(() => {
+      const ta = textareaRef.current;
+      const popup = popupRef.current;
+      if (document.activeElement !== ta && !(popup && popup.contains(document.activeElement))) {
+        setCompletion(null);
+      }
+    }, 120);
   };
 
   return (
@@ -315,7 +594,7 @@ export const Playground: React.FC<PlaygroundProps> = ({ initialCode }) => {
               </div>
 
               {/* Editable Area with Highlight Overlay */}
-              <div className="relative flex-1 h-full overflow-hidden">
+              <div ref={editorWrapRef} className="relative flex-1 h-full overflow-hidden">
                 {/* Syntax-highlighted HTML rendering behind */}
                 <pre
                   ref={preRef}
@@ -332,18 +611,86 @@ export const Playground: React.FC<PlaygroundProps> = ({ initialCode }) => {
                   id="cmen-playground-textarea"
                   ref={textareaRef}
                   value={code}
-                  onChange={(e) => setCode(e.target.value)}
-                  onScroll={handleScroll}
+                  onChange={handleCodeChange}
+                  onScroll={() => {
+                    handleScroll();
+                    if (completion) refreshCompletions(code, textareaRef.current?.selectionStart ?? 0);
+                  }}
                   onKeyDown={handleKeyDownInTextarea}
+                  onSelect={handleTextareaSelect}
+                  onBlur={closeCompletionOnBlur}
                   spellCheck={false}
                   autoCapitalize="off"
                   autoComplete="off"
+                  autoCorrect="off"
+                  data-gramm="false"
                   className="absolute inset-0 m-0 w-full h-full resize-none border-none p-3.5 font-mono text-sm leading-6 bg-transparent text-transparent caret-blue-500 focus:outline-none whitespace-pre tab-4"
                   style={{
                     caretColor: 'var(--accent-tint)',
                   }}
                   aria-label="Cmen source code editor"
+                  aria-expanded={completion ? true : undefined}
+                  aria-autocomplete="list"
                 />
+
+                {/* Variable suggestion popup (matches editor theming) */}
+                {completion && (
+                  <div
+                    ref={popupRef}
+                    role="listbox"
+                    aria-label="Variable suggestions"
+                    className="absolute z-20 w-52 max-w-[calc(100%-8px)] rounded-lg border shadow-lg overflow-hidden"
+                    style={{
+                      top: `${completion.top}px`,
+                      left: `${completion.left}px`,
+                      backgroundColor: 'var(--bg-surface-elevated)',
+                      borderColor: 'var(--border-strong)',
+                    }}
+                  >
+                    <div
+                      className="max-h-[180px] overflow-y-auto py-1"
+                      onMouseDown={(e) => e.preventDefault()}
+                    >
+                      {completion.list.map((name, idx) => (
+                        <button
+                          key={name}
+                          type="button"
+                          role="option"
+                          aria-selected={idx === completion.index}
+                          onMouseEnter={() => setCompletion({ ...completion, index: idx })}
+                          onClick={() => acceptCompletion({ ...completion, index: idx })}
+                          className="flex w-full items-center gap-2 px-2.5 py-1.5 text-left font-mono text-xs leading-4 transition-colors"
+                          style={{
+                            backgroundColor:
+                              idx === completion.index ? 'var(--accent-glow)' : 'transparent',
+                            color:
+                              idx === completion.index
+                                ? 'var(--text-primary)'
+                                : 'var(--text-secondary)',
+                          }}
+                        >
+                          {/^(ejaculate|length|text|number)$/.test(name) ? (
+                            <FunctionSquare className="h-3 w-3 shrink-0 text-sky-500" />
+                          ) : (
+                            <Variable className="h-3 w-3 shrink-0 text-violet-500" />
+                          )}
+                          <span className="truncate">{name}</span>
+                        </button>
+                      ))}
+                    </div>
+                    <div
+                      className="hidden sm:flex items-center justify-between border-t px-2.5 py-1 text-[10px] font-mono"
+                      style={{
+                        borderColor: 'var(--border-subtle)',
+                        color: 'var(--text-muted)',
+                        backgroundColor: 'var(--bg-surface)',
+                      }}
+                    >
+                      <span>↑↓ navigate</span>
+                      <span>Tab/Enter accept · Esc close</span>
+                    </div>
+                  </div>
+                )}
               </div>
             </div>
 
