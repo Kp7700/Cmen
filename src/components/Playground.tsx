@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useLayoutEffect, useCallback } from 'react';
 import {
   Play,
   RotateCcw,
@@ -19,6 +19,62 @@ interface PlaygroundProps {
   initialCode?: string;
 }
 
+/* ------------------------------------------------------------------ */
+/* Editor assist helpers (smart indentation, auto-close pairs,         */
+/* autocomplete). These are typing-only aids and do not affect the     */
+/* Cmen syntax or the interpreter.                                      */
+/* ------------------------------------------------------------------ */
+
+const CMEN_INDENT_UNIT = '    '; // matches the editor's tab-4 rendering
+
+// Keywords taken verbatim from the lexer's KEYWORDS set…
+const CMEN_KEYWORDS = [
+  'cum', 'gene', 'seed', 'mutate', 'grow', 'when', 'otherwise', 'release',
+  'die', 'mate', 'from', 'to', 'and', 'or', 'not', 'true', 'false',
+];
+// …plus built-in functions recognized by the evaluator.
+const CMEN_BUILTINS = ['ejaculate', 'length', 'text', 'number'];
+
+const PAIR_OPEN_TO_CLOSE: Record<string, string> = { '(': ')', '[': ']', '{': '}' };
+const PAIR_CLOSE_TO_OPEN: Record<string, string> = { ')': '(', ']': '[', '}': '{' };
+const QUOTES = ['"', "'"];
+
+/** Compute the indentation a line should have, based on the code above it. */
+function computeLineIndent(textUpToNewline: string): string {
+  const lines = textUpToNewline.split('\n');
+  const prevLine = lines[lines.length - 1] || '';
+  const prevTrimmed = prevLine.trim();
+
+  let depth = 0;
+  for (let i = 0; i < lines.length - 1; i++) {
+    const l = lines[i].trim();
+    if (!l) continue;
+    if (/^[}\])]/.test(l)) depth--;
+    const opens = (l.match(/[{\[(]/g) || []).length;
+    const closes = (l.match(/[}\])]/g) || []).length;
+    depth += opens - closes;
+  }
+  if (depth < 0) depth = 0;
+  if (/^[}\])]/.test(prevTrimmed)) depth--;
+  if (depth < 0) depth = 0;
+  return CMEN_INDENT_UNIT.repeat(depth);
+}
+
+/** Extract declared identifiers (gene/seed/mutate/grow loop vars) and function names. */
+function extractCmenIdentifiers(src: string): string[] {
+  const names = new Set<string>();
+  const patterns = [
+    /\b(?:gene|seed|mutate)\s+([A-Za-z_][A-Za-z0-9_]*)/g,
+    /\bcum\s+([A-Za-z_][A-Za-z0-9_]*)/g,
+    /\bgrow\s+([A-Za-z_][A-Za-z0-9_]*)\s+(?:from\s+[^{]+\s+)?to\b/g,
+  ];
+  for (const re of patterns) {
+    let m: RegExpExecArray | null;
+    while ((m = re.exec(src)) !== null) names.add(m[1]);
+  }
+  return Array.from(names);
+}
+
 export const Playground: React.FC<PlaygroundProps> = ({ initialCode }) => {
   const [selectedExampleId, setSelectedExampleId] = useState<string>('hello-world');
   const [code, setCode] = useState<string>(
@@ -28,10 +84,30 @@ export const Playground: React.FC<PlaygroundProps> = ({ initialCode }) => {
   const [isRunning, setIsRunning] = useState(false);
   const [copied, setCopied] = useState(false);
   const [toastMessage, setToastMessage] = useState<string | null>(null);
+  const [suggestions, setSuggestions] = useState<string[]>([]);
+  const [suggestStart, setSuggestStart] = useState(-1);
+  const [activeSuggestion, setActiveSuggestion] = useState(0);
 
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const preRef = useRef<HTMLPreElement>(null);
   const lineNumbersRef = useRef<HTMLDivElement>(null);
+  const pendingSelectionRef = useRef<{ start: number; end: number } | null>(null);
+  const suggestionsRef = useRef<string[]>([]);
+  suggestionsRef.current = suggestions;
+  const suggestStartRef = useRef(-1);
+  suggestStartRef.current = suggestStart;
+  const [caretPos, setCaretPos] = useState({ top: 0, left: 0 });
+
+  const activeSuggestionRef = useRef(0);
+  activeSuggestionRef.current = activeSuggestion;
+
+  // Reset the suggestion popup whenever the code is replaced wholesale
+  // (example selection, reset button, Hero handoff).
+  useEffect(() => {
+    setSuggestions([]);
+    setSuggestStart(-1);
+    setActiveSuggestion(0);
+  }, [code]);
 
   // Synchronize initial code if passed from Hero
   useEffect(() => {
@@ -112,23 +188,240 @@ export const Playground: React.FC<PlaygroundProps> = ({ initialCode }) => {
   const lineCount = Math.max(code.split('\n').length, 1);
   const lineNumbers = Array.from({ length: lineCount }, (_, i) => i + 1);
 
-  // Tab key indent handler
+  // Tab key indent handler + smart indentation, auto-closing pairs & autocomplete
+  const hideSuggestions = () => {
+    setSuggestions([]);
+    setSuggestStart(-1);
+    setActiveSuggestion(0);
+  };
+
+  /** Update the visible suggestion list from the current word prefix. */
+  const refreshSuggestions = useCallback((src: string, caret: number) => {
+    let s = caret;
+    while (s > 0 && /[A-Za-z0-9_]/.test(src[s - 1])) s--;
+    const word = src.slice(s, caret);
+    if (!word) {
+      hideSuggestions();
+      return;
+    }
+    const lower = word.toLowerCase();
+    const vars = extractCmenIdentifiers(src).filter((v) => v !== word);
+    const pool = [
+      ...vars,
+      ...CMEN_KEYWORDS.filter((k) => k !== word),
+      ...CMEN_BUILTINS.filter((b) => b !== word),
+    ];
+    const seen = new Set<string>();
+    const matches = pool
+      .filter((n) => n.toLowerCase().startsWith(lower) && !seen.has(n) && seen.add(n))
+      .slice(0, 8);
+    setSuggestions(matches);
+    setSuggestStart(matches.length ? s : -1);
+    setActiveSuggestion(0);
+  }, []);
+
+  /** Apply a text edit and restore the caret after React re-renders. */
+  const applyEdit = (next: string, selStart: number, selEnd: number) => {
+    pendingSelectionRef.current = { start: selStart, end: selEnd };
+    setCode(next);
+  };
+
+  const acceptSuggestion = (idx?: number) => {
+    const target = textareaRef.current;
+    const list = suggestionsRef.current;
+    const sStart = suggestStartRef.current;
+    if (!target || list.length === 0 || sStart < 0) return false;
+    const caret = target.selectionStart;
+    const chosen = list[Math.min(idx ?? activeSuggestionRef.current, list.length - 1)];
+    const next = code.slice(0, sStart) + chosen + code.slice(caret);
+    const newCaret = sStart + chosen.length;
+    applyEdit(next, newCaret, newCaret);
+    hideSuggestions();
+    return true;
+  };
+
+  /** Mirror the textarea caret position into an overlay div to place the suggestion popup. */
+  const updateCaretPos = useCallback(() => {
+    const ta = textareaRef.current;
+    if (!ta) return;
+    let mirror = document.getElementById('cmen-caret-mirror') as HTMLDivElement | null;
+    if (!mirror) {
+      mirror = document.createElement('div');
+      mirror.id = 'cmen-caret-mirror';
+      mirror.style.position = 'absolute';
+      mirror.style.visibility = 'hidden';
+      mirror.style.whiteSpace = 'pre-wrap';
+      mirror.style.wordWrap = 'break-word';
+      mirror.style.overflow = 'hidden';
+      document.body.appendChild(mirror);
+    }
+    const cs = window.getComputedStyle(ta);
+    (['fontFamily', 'fontSize', 'lineHeight', 'letterSpacing', 'paddingTop', 'paddingRight', 'paddingBottom', 'paddingLeft', 'tabSize'] as const).forEach((prop) => {
+      // @ts-ignore – index into CSSStyleDeclaration by name
+      mirror.style[prop] = cs[prop];
+    });
+    mirror.style.width = `${ta.clientWidth}px`;
+    const pos = ta.selectionStart ?? 0;
+    // Measure only up to the caret's line so earlier long lines cannot shift
+    // the popup horizontally (the editor itself does not wrap).
+    const textBeforeCaret = ta.value.slice(0, pos);
+    const lastNl = textBeforeCaret.lastIndexOf('\n');
+    mirror.textContent = lastNl === -1 ? textBeforeCaret : textBeforeCaret.slice(lastNl + 1);
+    const span = document.createElement('span');
+    span.textContent = '\u200b';
+    mirror.appendChild(span);
+    const lineNo = (textBeforeCaret.match(/\n/g) || []).length;
+    const lh = parseFloat(cs.lineHeight) || parseFloat(cs.fontSize) * 1.5 || 24;
+    setCaretPos({ top: lineNo * lh, left: span.offsetLeft });
+  }, []);
+
   const handleKeyDownInTextarea = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
+    const hasSug = suggestions.length > 0;
+
+    // Autocomplete navigation / acceptance
+    if (hasSug) {
+      if (e.key === 'ArrowUp') {
+        e.preventDefault();
+        setActiveSuggestion((i) => (i - 1 + suggestions.length) % suggestions.length);
+        return;
+      }
+      if (e.key === 'ArrowDown') {
+        e.preventDefault();
+        setActiveSuggestion((i) => (i + 1) % suggestions.length);
+        return;
+      }
+      if (e.key === 'Enter' || e.key === 'Tab') {
+        e.preventDefault();
+        acceptSuggestion();
+        return;
+      }
+      if (e.key === 'Escape') {
+        e.preventDefault();
+        hideSuggestions();
+        return;
+      }
+    }
+
+    if (e.ctrlKey || e.metaKey || e.altKey) return;
+
+    const target = e.currentTarget;
+    const start = target.selectionStart;
+    const end = target.selectionEnd;
+    const hasSel = start !== end;
+
+    // Enter -> smart indentation (compute indent from code above the caret)
+    if (e.key === 'Enter') {
+      e.preventDefault();
+      const lineStart = code.lastIndexOf('\n', start - 1) + 1;
+      const before = code.slice(lineStart, start);
+      const nextNl = code.indexOf('\n', start);
+      const after = code.slice(start, nextNl === -1 ? code.length : nextNl);
+      const trailingWs = after.match(/^\s*/)?.[0] ?? '';
+      // Indent level derived only from the lines strictly above the caret's line
+      const textAbove = code.slice(0, lineStart);
+      let indent = computeLineIndent(textAbove + before.trimEnd());
+      // Pressing Enter right before a closing brace: current line keeps its
+      // dedented position and the new line gets one extra level.
+      if (/^[}\])]/.test(after.trimStart()) && before.trim() === '') {
+        indent = indent === '' ? '' : indent.slice(0, -CMEN_INDENT_UNIT.length);
+      }
+      const rest = code.slice(start + trailingWs.length);
+      const insertion = '\n' + indent;
+      applyEdit(code.slice(0, start) + insertion + rest, start + insertion.length, start + insertion.length);
+      hideSuggestions();
+      return;
+    }
+
+    // Closing bracket/quote -> skip over an existing one instead of duplicating
+    if (PAIR_CLOSE_TO_OPEN[e.key] || QUOTES.includes(e.key)) {
+      if (!hasSel && code[start] === e.key) {
+        e.preventDefault();
+        applyEdit(code, start + 1, start + 1);
+        hideSuggestions();
+        return;
+      }
+      if (QUOTES.includes(e.key) && !hasSel) {
+        const prev = start > 0 ? code[start - 1] : '';
+        // Only auto-pair outside identifiers/numbers/closing brackets;
+        // otherwise treat it as a closing quote and let native typing happen.
+        if (!/[A-Za-z0-9_)\]}]/.test(prev)) {
+          e.preventDefault();
+          const newText = code.slice(0, start) + e.key + e.key + code.slice(end);
+          applyEdit(newText, start + 1, start + 1);
+          hideSuggestions();
+          return;
+        }
+      }
+      return; // plain close with no matching char ahead -> native typing
+    }
+
+    // Opening bracket -> auto-close (empty pair, caret stays between the chars)
+    if (PAIR_OPEN_TO_CLOSE[e.key]) {
+      e.preventDefault();
+      const close = PAIR_OPEN_TO_CLOSE[e.key];
+      const newText = code.slice(0, start) + e.key + close + code.slice(end);
+      applyEdit(newText, start + 1, start + 1);
+      hideSuggestions();
+      return;
+    }
+
+    // Tab -> manual indent (existing behavior)
     if (e.key === 'Tab') {
       e.preventDefault();
-      const target = e.currentTarget;
-      const start = target.selectionStart;
-      const end = target.selectionEnd;
-
-      const newCode = code.substring(0, start) + '    ' + code.substring(end);
-      setCode(newCode);
-
-      setTimeout(() => {
-        if (textareaRef.current) {
-          textareaRef.current.selectionStart = textareaRef.current.selectionEnd = start + 4;
-        }
-      }, 0);
+      const newCode = code.substring(0, start) + CMEN_INDENT_UNIT + code.substring(end);
+      applyEdit(newCode, start + CMEN_INDENT_UNIT.length, start + CMEN_INDENT_UNIT.length);
+      hideSuggestions();
+      return;
     }
+
+    // Backspace -> delete an empty auto-created pair sensibly
+    if (e.key === 'Backspace' && !hasSel && start > 0) {
+      const prev = code[start - 1];
+      const next = code[start] || '';
+      const isEmptyPair =
+        (PAIR_OPEN_TO_CLOSE[prev] === next) || (QUOTES.includes(prev) && prev === next);
+      if (isEmptyPair) {
+        e.preventDefault();
+        const newText = code.slice(0, start - 1) + code.slice(start + 1);
+        applyEdit(newText, start - 1, start - 1);
+        refreshSuggestions(newText, start - 1);
+        return;
+      }
+      // Deleting typed indentation on a fresh line -> remove up to previous tab stop
+      const lineStart = code.lastIndexOf('\n', start - 1) + 1;
+      const beforeCursor = code.slice(lineStart, start);
+      if (/^\s+$/.test(beforeCursor) && beforeCursor.length % CMEN_INDENT_UNIT.length === 0) {
+        e.preventDefault();
+        const newText = code.slice(0, start - CMEN_INDENT_UNIT.length) + code.slice(start);
+        applyEdit(newText, start - CMEN_INDENT_UNIT.length, start - CMEN_INDENT_UNIT.length);
+        refreshSuggestions(newText, start - CMEN_INDENT_UNIT.length);
+        return;
+      }
+    }
+  };
+
+  // Keep caret position after programmatic edits applied through state
+  useLayoutEffect(() => {
+    if (pendingSelectionRef.current && textareaRef.current) {
+      const { start, end } = pendingSelectionRef.current;
+      textareaRef.current.focus();
+      textareaRef.current.setSelectionRange(start, end);
+      pendingSelectionRef.current = null;
+    }
+    updateCaretPos();
+  }, [code, updateCaretPos]);
+
+  // Native input events (typing/paste) -> live suggestion updates
+  const handleTextareaInput = (e: React.FormEvent<HTMLTextAreaElement>) => {
+    const target = e.currentTarget;
+    refreshSuggestions(target.value, target.selectionStart);
+    updateCaretPos();
+  };
+
+  const handleTextareaSelectChange = () => {
+    const target = textareaRef.current;
+    if (!target) return;
+    if (target.selectionStart !== target.selectionEnd) hideSuggestions();
   };
 
   return (
@@ -333,6 +626,9 @@ export const Playground: React.FC<PlaygroundProps> = ({ initialCode }) => {
                   ref={textareaRef}
                   value={code}
                   onChange={(e) => setCode(e.target.value)}
+                  onInput={handleTextareaInput}
+                  onSelect={handleTextareaSelectChange}
+                  onBlur={() => hideSuggestions()}
                   onScroll={handleScroll}
                   onKeyDown={handleKeyDownInTextarea}
                   spellCheck={false}
@@ -344,6 +640,42 @@ export const Playground: React.FC<PlaygroundProps> = ({ initialCode }) => {
                   }}
                   aria-label="Cmen source code editor"
                 />
+
+                {/* Autocomplete suggestion popup (typing aid only) */}
+                {suggestions.length > 0 && (
+                  <div
+                    id="cmen-autocomplete-popup"
+                    role="listbox"
+                    aria-label="Cmen autocomplete suggestions"
+                    className="absolute z-20 min-w-[140px] max-h-48 overflow-y-auto rounded-md border py-1 text-xs shadow-lg"
+                    style={{
+                      top: Math.max(0, caretPos.top - (textareaRef.current?.scrollTop ?? 0)) + 26,
+                      left: Math.max(0, caretPos.left - (textareaRef.current?.scrollLeft ?? 0)),
+                      backgroundColor: 'var(--bg-surface-elevated)',
+                      borderColor: 'var(--border-strong)',
+                      color: 'var(--text-primary)',
+                    }}
+                    onMouseDown={(e) => e.preventDefault()}
+                  >
+                    {suggestions.map((sug, idx) => (
+                      <button
+                        key={sug}
+                        type="button"
+                        role="option"
+                        aria-selected={idx === activeSuggestion}
+                        onClick={() => acceptSuggestion(idx)}
+                        className="block w-full px-3 py-1 text-left font-mono whitespace-nowrap"
+                        style={{
+                          backgroundColor: idx === activeSuggestion ? 'var(--accent-tint)' : 'transparent',
+                          color: idx === activeSuggestion ? '#ffffff' : 'var(--text-secondary)',
+                          opacity: idx === activeSuggestion ? 1 : 0.9,
+                        }}
+                      >
+                        {sug}
+                      </button>
+                    ))}
+                  </div>
+                )}
               </div>
             </div>
 
